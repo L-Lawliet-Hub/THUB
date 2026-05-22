@@ -795,6 +795,25 @@ function AutoFarm:Stop()
 	getgenv()._colossalCannonRunning = false
 	getgenv()._colossalPhase2Running = false
 end
+
+local function ForceRetry()
+	task.spawn(function()
+		-- Try direct server remote first
+		pcall(function()
+			getRemote:InvokeServer("Functions", "Retry")
+		end)
+		pcall(function()
+			getRemote:InvokeServer("S_Missions", "Retry")
+		end)
+		-- Fallback: rejoin same server
+		task.wait(0.5)
+		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
+		if rewardsGui and rewardsGui.Visible then
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, lp)
+		end
+	end)
+end
+
 local noclipConn = nil
 local function setNoclip(enabled)
 	if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
@@ -850,6 +869,11 @@ local webhook
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
 		if not rewards.Visible then return end
+			if getgenv().ForceRetry then
+	task.wait(1)
+	ForceRetry()
+	return
+end
 
 		-- Reset mission start timer for next game
 		getgenv()._missionStartTime = nil
@@ -2111,6 +2135,14 @@ MainGroup:AddToggle("AutoRetryToggle", {
 Toggles.AutoRetryToggle:OnChanged(function()
 	getgenv().AutoRetry = Toggles.AutoRetryToggle.Value
 	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
+end)
+
+MainGroup:AddToggle("ForceRetryToggle", {
+	Text = "Force Auto Retry",
+	Default = false,
+})
+Toggles.ForceRetryToggle:OnChanged(function()
+	getgenv().ForceRetry = Toggles.ForceRetryToggle.Value
 end)
 
 FeaturesGroup:AddToggle("DieAtStreakToggle", {
