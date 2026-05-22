@@ -1645,7 +1645,7 @@ end)
 -- TITANIC HUB CUSTOM UI LIBRARY
 -- ==========================================
 
-local TH_UI = loadstring(game:HttpGet("loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/TitanicLib/main/TitanicLib.lua"))()"))()
+local TH_UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/TitanicLib/main/TitanicLib.lua"))()
 
 -- Use TitanicLib's shared Options/Toggles tables
 local Options  = TH_UI.Options
