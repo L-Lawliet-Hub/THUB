@@ -795,6 +795,27 @@ function AutoFarm:Stop()
 	getgenv()._colossalCannonRunning = false
 	getgenv()._colossalPhase2Running = false
 end
+local noclipConn = nil
+local function setNoclip(enabled)
+	if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
+	if not enabled then
+		-- Re-enable collisions on current character
+		local char = lp.Character
+		if char then
+			for _, p in ipairs(char:GetDescendants()) do
+				if p:IsA("BasePart") then p.CanCollide = true end
+			end
+		end
+		return
+	end
+	noclipConn = RunService.Stepped:Connect(function()
+		local char = lp.Character
+		if not char then return end
+		for _, p in ipairs(char:GetDescendants()) do
+			if p:IsA("BasePart") then p.CanCollide = false end
+		end
+	end)
+end
 
 local function formatTable(tbl)
 	local str = ""
@@ -1642,20 +1663,31 @@ postRemote.OnClientEvent:Connect(function(...)
 end)
 
 -- ==========================================
--- TITANIC HUB CUSTOM UI LIBRARY
+-- OBSIDIAN UI LIBRARY LOAD
 -- ==========================================
 
-local TH_UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/TitanicLib/main/TitanicLib.lua"))()
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
--- Use TitanicLib's shared Options/Toggles tables
-local Options  = TH_UI.Options
-local Toggles  = TH_UI.Toggles
+local Options = Library.Options
+local Toggles = Library.Toggles
 
-local Library = TH_UI  -- Library:Notify() etc. all work via TH_UI
+task.spawn(function()
+    task.wait(1)
+    pcall(function()
+        Library:SetFont(Enum.Font.Gotham)
+    end)
+end)
 
-local Window = TH_UI:CreateWindow({
+local Window = Library:CreateWindow({
 	Title = "TITANIC HUB",
 	Footer = "AOT:R | FREE",
+	Center = true,
+	AutoShow = true,
+	Resizable = true,
+	ShowCustomCursor = true,
 })
 
 local Tabs = {
@@ -1985,6 +2017,13 @@ Options.FloatHeightSlider:OnChanged(function()
 	getgenv().AutoFarmConfig.HeightOffset = Options.FloatHeightSlider.Value
 end)
 
+MovementGroup:AddToggle("NoclipToggle", {
+	Text = "Noclip",
+	Default = false,
+})
+Toggles.NoclipToggle:OnChanged(function()
+	setNoclip(Toggles.NoclipToggle.Value)
+end)
 
 CombatGroup:AddToggle("AutoReloadToggle", {
 	Text = "Auto Reload/Refill",
@@ -3016,8 +3055,34 @@ Toggles.Disable3DRendering:OnChanged(function()
 end)
 
 SettingsGroup:AddLabel("Menu toggle"):AddKeyPicker("MenuKeybind", { Default = "RightControl", NoUI = true, Text = "Menu keybind" })
-Library.Unloaded = false
+Library.ToggleKeybind = Options.MenuKeybind
 
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+
+ThemeManager:SetFolder("THUB1/aotr")
+SaveManager:SetFolder("THUB1/aotr")
+
+-- Titanic Hub colour scheme + Gotham font
+ThemeManager:SetDefaultTheme({
+	FontColor       = Color3.fromRGB(225, 225, 225),
+	MainColor       = Color3.fromRGB(28, 28, 28),
+	AccentColor     = Color3.fromRGB(100, 100, 255),
+	BackgroundColor = Color3.fromRGB(20, 20, 20),
+	OutlineColor    = Color3.fromRGB(50, 50, 50),
+	FontFace        = Font.fromName("Gotham", Enum.FontWeight.Medium),
+})
+
+SaveManager:BuildConfigSection(Tabs.Settings)
+ThemeManager:ApplyToTab(Tabs.Settings)
+
+ThemeManager:LoadDefault()
+SaveManager:LoadAutoloadConfig()
+
+Library:OnUnload(function()
+		setNoclip(false)
+	Library.Unloaded = true
+end)
 
 task.spawn(function()
 	while not Library.Unloaded do
@@ -3037,7 +3102,7 @@ end)
 task.spawn(function()
 	task.wait(0.5) -- Wait for config load
 	if getgenv().DeleteMap then DeleteMap() end
-	if Toggles.AutoHideToggle and Toggles.AutoHideToggle.Value then
+	if Toggles.AutoHideToggle.Value then
 		Library:Toggle(false)
 		Library:Notify({
 			Title = "TITANIC HUB",
@@ -3045,4 +3110,10 @@ task.spawn(function()
 			Time = 2
 		})
 	end
+end)
+task.spawn(function()
+    task.wait(1)
+    pcall(function()
+        Library:SetFont(Enum.Font.Gotham)
+    end)
 end)
