@@ -1271,7 +1271,7 @@ local function setupAutoExecute()
 		queue_on_teleport([[
 			repeat task.wait() until game:IsLoaded()
 			task.wait(5)
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/umknown-user/H/main/upd.lua"))()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/umknown-user/H/main/ins.lua"))()
 		]])
 	end
 end
@@ -1645,10 +1645,13 @@ end)
 -- TITANIC HUB CUSTOM UI LIBRARY
 -- ==========================================
 
-local TH_UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/TitanicLib/refs/heads/main/TitanicLib.lua"))()
-local Library = TH_UI
+local TH_UI = loadstring(game:HttpGet("loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/TitanicLib/main/TitanicLib.lua"))()"))()
+
+-- Use TitanicLib's shared Options/Toggles tables
 local Options  = TH_UI.Options
 local Toggles  = TH_UI.Toggles
+
+local Library = TH_UI  -- Library:Notify() etc. all work via TH_UI
 
 local Window = TH_UI:CreateWindow({
 	Title = "TITANIC HUB",
@@ -1656,11 +1659,11 @@ local Window = TH_UI:CreateWindow({
 })
 
 local Tabs = {
-	Farm     = Window:AddTab("Farm"),
-	Utility  = Window:AddTab("Utils"),
-	Upgrades = Window:AddTab("Upgrades"),
-	Global   = Window:AddTab("Central"),
-	Settings = Window:AddTab("Settings"),
+	Farm     = Window:AddTab("Main",     "house"),
+	Utility  = Window:AddTab("Utils",  "zap"),
+	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
+	Global   = Window:AddTab("Central",   "compass"),
+	Settings = Window:AddTab("Settings", "settings"),
 }
 
 -- Farm tab
@@ -3013,10 +3016,8 @@ Toggles.Disable3DRendering:OnChanged(function()
 end)
 
 SettingsGroup:AddLabel("Menu toggle"):AddKeyPicker("MenuKeybind", { Default = "RightControl", NoUI = true, Text = "Menu keybind" })
-Library.ToggleKeybind = Options.MenuKeybind
-
--- TitanicLib handles its own theme/config
 Library.Unloaded = false
+
 
 task.spawn(function()
 	while not Library.Unloaded do
@@ -3044,10 +3045,4 @@ task.spawn(function()
 			Time = 2
 		})
 	end
-end)
-task.spawn(function()
-    task.wait(1)
-    pcall(function()
-        Library:SetFont(Enum.Font.Gotham)
-    end)
 end)
