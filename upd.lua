@@ -2496,6 +2496,37 @@ AutoStartGroup:AddDropdown("ModifiersDropdown", {
 	Multi = true,
 	Text = "Modifiers",
 })
+AutoStartGroup:AddToggle("AllModifiersToggle", {
+	Text = "Enable All Modifiers (Max Rewards)",
+	Default = false,
+})
+Toggles.AllModifiersToggle:OnChanged(function()
+	if Toggles.AllModifiersToggle.Value then
+		Options.ModifiersDropdown:SetValue({
+			["No Perks"]          = true,
+			["No Skills"]         = true,
+			["No Memories"]       = true,
+			["Nightmare"]         = true,
+			["Oddball"]           = true,
+			["Injury Prone"]      = true,
+			["Chronic Injuries"]  = true,
+			["Fog"]               = true,
+			["Glass Cannon"]      = true,
+		})
+		Library:Notify({
+			Title = "Auto Start",
+			Description = "All 9 modifiers enabled!",
+			Time = 3
+		})
+	else
+		Options.ModifiersDropdown:SetValue({})
+		Library:Notify({
+			Title = "Auto Start",
+			Description = "Modifiers cleared!",
+			Time = 3
+		})
+	end
+end)
 
 -- Trigger type initialization
 task.defer(function()
