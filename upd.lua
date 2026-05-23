@@ -170,7 +170,7 @@ task.spawn(function()
 				v:Destroy()
 			end
 		end
-		task.wait(1)
+		task.wait(2.5)
 	end
 end)
 
@@ -268,7 +268,7 @@ function AutoFarm:Start()
 
 		while self._running do
 			if lp:GetAttribute("Cutscene") then
-				task.wait()
+				task.wait(0.05)
 				continue
 			end
 
@@ -413,7 +413,7 @@ end
 								if not getgenv()._colossalCannonRunning then return end
 								local ref = cannonObj or workspace:FindFirstChild("Cannon")
 								if not ref then return end
-								for i = 1, 50 do
+								for i = 1, 30 do
 									local napePos = getLiveNapePos()
 									if napePos then
 										postRemote:FireServer("S_Skills", "Impact", ref, napePos)
@@ -464,7 +464,7 @@ end
 								if not napePart or not napePos then task.wait() continue end
 
 								-- Multi-hit: S_Explode x5 + Register per frame (no freeze)
-								for i = 1, 10 do
+								for i = 1, 8 do
 									postRemote:FireServer("Spears", "S_Explode", napePos)
 								end
 								postRemote:FireServer("Hitboxes", "Register", napePart, math.random(625, 850))
@@ -480,10 +480,12 @@ end
 
 
 
-			for i = 1, #charParts do
-				local p = charParts[i]
-				if p and p.Parent then p.CanCollide = false end
-			end
+if math.fmod(os.clock(), 0.5) < 0.05 then
+    for i = 1, #charParts do
+        local p = charParts[i]
+        if p and p.Parent then p.CanCollide = false end
+    end
+end
 
 			local now = os.clock()
 
@@ -690,7 +692,7 @@ end
 							end)
 						end
 					end
-					task.wait()
+					task.wait(0.05)
 					continue
 				end
 
@@ -713,7 +715,7 @@ end
 					root.CFrame = CFrame.new(targetHeightPos)
 				end
 
-				if not attackTitanReady then task.wait() continue end
+				if not attackTitanReady then task.wait(0.05) continue end
 
 				local dx = root.Position.X - targetPart.Position.X
 				local dz = root.Position.Z - targetPart.Position.Z
@@ -771,7 +773,7 @@ end
 								end
 								
 								-- Bosses take more damage / rapid fire
-								local loops = isBoss and 60 or 1
+								local loops = isBoss and 40 or 1
 								for j = 1, loops do
 									for _, nape in ipairs(hitTargets) do
 										postRemote:FireServer("Spears", "S_Explode", nape.Position)
@@ -785,7 +787,7 @@ end
 				root.AssemblyLinearVelocity = V3_ZERO
 			end
 
-			task.wait()
+			task.wait(0.05)
 		end
 	end)
 end
@@ -794,6 +796,28 @@ function AutoFarm:Stop()
 	self._running = false
 	getgenv()._colossalCannonRunning = false
 	getgenv()._colossalPhase2Running = false
+end
+
+local noclipConn = nil
+local function setNoclip(enabled)
+	if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
+	if not enabled then
+		-- Re-enable collisions on current character
+		local char = lp.Character
+		if char then
+			for _, p in ipairs(char:GetDescendants()) do
+				if p:IsA("BasePart") then p.CanCollide = true end
+			end
+		end
+		return
+	end
+	noclipConn = RunService.Stepped:Connect(function()
+		local char = lp.Character
+		if not char then return end
+		for _, p in ipairs(char:GetDescendants()) do
+			if p:IsA("BasePart") then p.CanCollide = false end
+		end
+	end)
 end
 
 local function formatTable(tbl)
@@ -1269,8 +1293,9 @@ local function setupAutoExecute()
 	if getgenv().AutoExecute and not getgenv().AutoExec then
 		getgenv().AutoExec = true
 		queue_on_teleport([[
-			repeat task.wait() until game:IsLoaded()
+		  repeat task.wait() until game:IsLoaded()
 			task.wait(5)
+			getgenv().AutoExec = false
 			loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/upd.lua"))()
 		]])
 	end
@@ -1331,7 +1356,7 @@ local function ExecuteImmediateAutomation()
             -- Method 3: Click via VirtualInputManager directly
             if retryBtn and retryBtn.Visible and retryBtn.Active then
                 -- Wait a bit for UI to fully load
-                task.wait(0.5)
+                task.wait(1)
                 
                 -- Try multiple click methods
                 local clicked = false
@@ -1994,6 +2019,14 @@ MovementGroup:AddSlider("FloatHeightSlider", {
 })
 Options.FloatHeightSlider:OnChanged(function()
 	getgenv().AutoFarmConfig.HeightOffset = Options.FloatHeightSlider.Value
+end)
+
+MovementGroup:AddToggle("NoclipToggle", {
+	Text = "Noclip",
+	Default = false,
+})
+Toggles.NoclipToggle:OnChanged(function()
+	setNoclip(Toggles.NoclipToggle.Value)
 end)
 
 
@@ -3052,6 +3085,7 @@ ThemeManager:LoadDefault()
 SaveManager:LoadAutoloadConfig()
 
 Library:OnUnload(function()
+		setNoclip(false)
 	Library.Unloaded = true
 end)
 
