@@ -854,39 +854,6 @@ if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
 		if not rewards.Visible then return end
 
-		-- Chest first, THEN retry
-		if getgenv().AutoChest then
-			task.wait(1.5) -- wait for chest UI to appear
-			local chests = INTERFACE:FindFirstChild("Chests")
-			local chestWait = os.clock()
-			repeat task.wait(0.3) until (chests and chests.Visible) or os.clock() - chestWait > 5
-
-			if chests and chests.Visible then
-				local free = chests:FindFirstChild("Free")
-				local premium = chests:FindFirstChild("Premium")
-				local finish = chests:FindFirstChild("Finish")
-
-				if free and free.Visible then
-					UseButton(free)
-					task.wait(1)
-				end
-
-				if getgenv().OpenSecondChest and premium and premium.Visible then
-					local title = premium:FindFirstChild("Title")
-					if title and not string.find(title.Text, "(0)") then
-						UseButton(premium)
-						task.wait(1)
-					end
-				end
-
-				finish = chests:FindFirstChild("Finish")
-				if finish and finish.Visible then
-					UseButton(finish)
-					task.wait(0.5)
-				end
-			end
-		end
-
 		-- Reset mission start timer for next game
 		getgenv()._missionStartTime = nil
 
@@ -1354,10 +1321,10 @@ local function ExecuteImmediateAutomation()
 
 			if free and free.Visible then
 				UseButton(free)
-				task.wait(0.8)
+				task.wait(1.5)
 			elseif premium and premium.Visible and premium:FindFirstChild("Title") and not string.find(premium.Title.Text, "(0)") and getgenv().OpenSecondChest then
 				UseButton(premium)
-				task.wait(0.7)
+				task.wait(1.5)
 			elseif finish and finish.Visible then
 				UseButton(finish)
 			end
