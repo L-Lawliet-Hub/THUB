@@ -819,7 +819,52 @@ local function setNoclip(enabled)
 		end
 	end)
 end
+-- Auto Rejoin on Crash
+local lastMissionState = false
+local crashCheckRunning = false
 
+local function startCrashDetection()
+	if crashCheckRunning then return end
+	crashCheckRunning = true
+	task.spawn(function()
+		while crashCheckRunning do
+			task.wait(10)
+			if not getgenv().AutoRejoin then continue end
+			if isLobby then continue end
+			if not AutoFarm._running then continue end
+
+			-- Check if game is stuck (no titans folder or workspace not initialized)
+			local titans = workspace:FindFirstChild("Titans")
+			local unclimbable = workspace:FindFirstChild("Unclimbable")
+
+			if not titans and not unclimbable then
+				-- Possible crash/stuck state
+				task.wait(10) -- wait 10 more secs to confirm
+				titans = workspace:FindFirstChild("Titans")
+				unclimbable = workspace:FindFirstChild("Unclimbable")
+
+				if not titans and not unclimbable then
+					sessionStats.crashes = sessionStats.crashes + 1
+					Library:Notify({
+						Title = "Auto Rejoin",
+						Description = "Crash detected! Rejoining... (" .. sessionStats.crashes .. " total)",
+						Time = 5
+					})
+
+					AutoFarm:Stop()
+					task.wait(0.5)
+					pcall(function() getRemote:InvokeServer("Functions", "Teleport", "Lobby") end)
+					task.wait(0.5)
+					pcall(function() TeleportService:Teleport(14916516914, lp) end)
+				end
+			end
+		end
+	end)
+end
+
+local function stopCrashDetection()
+	crashCheckRunning = false
+end
 local function formatTable(tbl)
 	local str = ""
 	for k, v in pairs(tbl) do
@@ -847,6 +892,37 @@ local data = {
 local path = "./THUB1/aotr/games_played.txt"
 if not isfile(path) then writefile(path, "0") end
 local gamesPlayed = tonumber(readfile(path))
+-- Session Stats tracking
+local sessionStats = {
+	startTime = os.clock(),
+	gamesPlayed = 0,
+	totalGold = 0,
+	totalGems = 0,
+	totalXP = 0,
+	totalKills = 0,
+	mythicalDrops = 0,
+	crashes = 0,
+}
+
+local function getSessionTime()
+	local elapsed = os.clock() - sessionStats.startTime
+	local hours = math.floor(elapsed / 3600)
+	local mins = math.floor((elapsed % 3600) / 60)
+	local secs = math.floor(elapsed % 60)
+	return string.format("%02d:%02d:%02d", hours, mins, secs)
+end
+
+local function getGoldPerHour()
+	local elapsed = (os.clock() - sessionStats.startTime) / 3600
+	if elapsed < 0.01 then return 0 end
+	return math.floor(sessionStats.totalGold / elapsed)
+end
+
+local function getGamesPerHour()
+	local elapsed = (os.clock() - sessionStats.startTime) / 3600
+	if elapsed < 0.01 then return 0 end
+	return math.floor(sessionStats.gamesPlayed / elapsed)
+end
 
 local webhook
 
@@ -859,6 +935,19 @@ if rewards then
 
 	gamesPlayed = gamesPlayed + 1
 		writefile("./THUB1/aotr/games_played.txt", tostring(gamesPlayed))
+			-- Update session stats
+		sessionStats.gamesPlayed = sessionStats.gamesPlayed + 1
+		pcall(function()
+			local res = getRemote:InvokeServer("S_Rewards", "Get", true)
+			if res and res.Obtained then
+				sessionStats.totalGold = sessionStats.totalGold + (res.Obtained.Gold or 0)
+				sessionStats.totalGems = sessionStats.totalGems + (res.Obtained.Gems or 0)
+				sessionStats.totalXP = sessionStats.totalXP + (res.Obtained.XP or 0)
+			end
+		end)
+		if data.Special and next(data.Special) then
+			sessionStats.mythicalDrops = sessionStats.mythicalDrops + 1
+		end
 
 		local gamesUntilReturn = tonumber(readfile(returnCounterPath)) or 0
 		local willReturn = false
@@ -1701,6 +1790,7 @@ local Tabs = {
 	Utility  = Window:AddTab("Utils",  "zap"),
 	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
 	Global   = Window:AddTab("Central",   "compass"),
+	Stats    = Window:AddTab("Stats",    "bar-chart"),
 	Settings = Window:AddTab("Settings", "settings"),
 }
 
@@ -1726,6 +1816,12 @@ local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll")
 local SettingsGroup   = Tabs.Global:AddLeftGroupbox("Settings")
 local SlotGroup       = Tabs.Global:AddRightGroupbox("Slots")
 local WebhookGroup    = Tabs.Global:AddRightGroupbox("Webhook")
+
+
+-- Stats tab
+local SessionGroup = Tabs.Stats:AddLeftGroupbox("Session Stats")
+local RatesGroup   = Tabs.Stats:AddRightGroupbox("Rates")
+local CrashGroup   = Tabs.Stats:AddRightGroupbox("Auto Rejoin")
 
 -- ==========================================
 -- FARM TAB : Misc Groupbox
@@ -3110,6 +3206,75 @@ ThemeManager:SetDefaultTheme({
 	OutlineColor    = Color3.fromRGB(50, 50, 50),
 	FontFace        = Font.fromName("Gotham", Enum.FontWeight.Medium),
 })
+
+-- ==========================================
+-- STATS TAB
+-- ==========================================
+
+-- Labels (we update these in a loop)
+local labelSessionTime    = SessionGroup:AddLabel("Session Time: 00:00:00")
+local labelGames          = SessionGroup:AddLabel("Games Played: 0")
+local labelGold           = SessionGroup:AddLabel("Total Gold: 0")
+local labelGems           = SessionGroup:AddLabel("Total Gems: 0")
+local labelXP             = SessionGroup:AddLabel("Total XP: 0")
+local labelMythicals      = SessionGroup:AddLabel("Mythical Drops: 0")
+local labelCrashes        = SessionGroup:AddLabel("Crashes Detected: 0")
+
+local labelGoldHour       = RatesGroup:AddLabel("Gold / Hour: 0")
+local labelGamesHour      = RatesGroup:AddLabel("Games / Hour: 0")
+local labelAvgGold        = RatesGroup:AddLabel("Avg Gold / Game: 0")
+
+SessionGroup:AddButton({
+	Text = "Reset Session",
+	Func = function()
+		sessionStats.startTime   = os.clock()
+		sessionStats.gamesPlayed = 0
+		sessionStats.totalGold   = 0
+		sessionStats.totalGems   = 0
+		sessionStats.totalXP     = 0
+		sessionStats.totalKills  = 0
+		sessionStats.mythicalDrops = 0
+		sessionStats.crashes     = 0
+		Library:Notify({ Title = "Stats", Description = "Session reset!", Time = 2 })
+	end,
+})
+
+-- Auto Rejoin toggle
+CrashGroup:AddToggle("AutoRejoinToggle", {
+	Text = "Auto Rejoin on Crash",
+	Default = false,
+})
+Toggles.AutoRejoinToggle:OnChanged(function()
+	getgenv().AutoRejoin = Toggles.AutoRejoinToggle.Value
+	if getgenv().AutoRejoin then
+		startCrashDetection()
+	else
+		stopCrashDetection()
+	end
+end)
+
+CrashGroup:AddLabel("Detects stuck/crashed missions\nand auto returns to lobby")
+
+-- Live update loop for stats labels
+task.spawn(function()
+	while not Library.Unloaded do
+		pcall(function()
+			labelSessionTime:SetText("Session Time: "    .. getSessionTime())
+			labelGames:SetText("Games Played: "          .. sessionStats.gamesPlayed)
+			labelGold:SetText("Total Gold: "             .. sessionStats.totalGold)
+			labelGems:SetText("Total Gems: "             .. sessionStats.totalGems)
+			labelXP:SetText("Total XP: "                 .. sessionStats.totalXP)
+			labelMythicals:SetText("Mythical Drops: "    .. sessionStats.mythicalDrops)
+			labelCrashes:SetText("Crashes Detected: "    .. sessionStats.crashes)
+			labelGoldHour:SetText("Gold / Hour: "        .. getGoldPerHour())
+			labelGamesHour:SetText("Games / Hour: "      .. getGamesPerHour())
+			local avgGold = sessionStats.gamesPlayed > 0 
+				and math.floor(sessionStats.totalGold / sessionStats.gamesPlayed) or 0
+			labelAvgGold:SetText("Avg Gold / Game: "     .. avgGold)
+		end)
+		task.wait(1)
+	end
+end)
 
 SaveManager:BuildConfigSection(Tabs.Settings)
 ThemeManager:ApplyToTab(Tabs.Settings)
