@@ -896,38 +896,33 @@ local gamesPlayed = tonumber(readfile(path))
 -- Session Stats tracking
 local statsPath = "./THUB1/aotr/session_stats.json"
 
-local function LoadSessionStats()
-	if not isfile(statsPath) then
-		return {
-			startTime = os.time(),
-			gamesPlayed = 0,
-			totalGold = 0,
-			totalGems = 0,
-			totalXP = 0,
-			totalKills = 0,
-			mythicalDrops = 0,
-			crashes = 0,
-		}
-	end
-	local ok, data = pcall(HttpService.JSONDecode, HttpService, readfile(statsPath))
-	if not ok or not data then
-		return {
-			startTime = os.time(),
-			gamesPlayed = 0,
-			totalGold = 0,
-			totalGems = 0,
-			totalXP = 0,
-			totalKills = 0,
-			mythicalDrops = 0,
-			crashes = 0,
-		}
-	end
-	data.startTime = data.startTime or os.time()
-	return data
+local function SaveSessionStats()
+	writefile("./THUB1/aotr/s_games.txt",     tostring(sessionStats.gamesPlayed))
+	writefile("./THUB1/aotr/s_gold.txt",      tostring(sessionStats.totalGold))
+	writefile("./THUB1/aotr/s_gems.txt",      tostring(sessionStats.totalGems))
+	writefile("./THUB1/aotr/s_xp.txt",        tostring(sessionStats.totalXP))
+	writefile("./THUB1/aotr/s_mythicals.txt", tostring(sessionStats.mythicalDrops))
+	writefile("./THUB1/aotr/s_crashes.txt",   tostring(sessionStats.crashes))
+	writefile("./THUB1/aotr/s_start.txt",     tostring(sessionStats.startTime))
 end
 
-local function SaveSessionStats()
-	pcall(writefile, statsPath, HttpService:JSONEncode(sessionStats))
+local function LoadSessionStats()
+	local function rf(path, default)
+		if isfile(path) then
+			return tonumber(readfile(path)) or default
+		end
+		return default
+	end
+	return {
+		startTime    = rf("./THUB1/aotr/s_start.txt",     os.time()),
+		gamesPlayed  = rf("./THUB1/aotr/s_games.txt",     0),
+		totalGold    = rf("./THUB1/aotr/s_gold.txt",      0),
+		totalGems    = rf("./THUB1/aotr/s_gems.txt",      0),
+		totalXP      = rf("./THUB1/aotr/s_xp.txt",        0),
+		totalKills   = 0,
+		mythicalDrops = rf("./THUB1/aotr/s_mythicals.txt", 0),
+		crashes      = rf("./THUB1/aotr/s_crashes.txt",   0),
+	}
 end
 
 local sessionStats = LoadSessionStats()
