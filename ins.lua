@@ -899,7 +899,7 @@ local statsPath = "./THUB1/aotr/session_stats.json"
 local function LoadSessionStats()
 	if not isfile(statsPath) then
 		return {
-			startTime = os.clock(),
+			startTime = os.time(),
 			gamesPlayed = 0,
 			totalGold = 0,
 			totalGems = 0,
@@ -912,7 +912,7 @@ local function LoadSessionStats()
 	local ok, data = pcall(HttpService.JSONDecode, HttpService, readfile(statsPath))
 	if not ok or not data then
 		return {
-			startTime = os.clock(),
+			startTime = os.time(),
 			gamesPlayed = 0,
 			totalGold = 0,
 			totalGems = 0,
@@ -922,8 +922,7 @@ local function LoadSessionStats()
 			crashes = 0,
 		}
 	end
-	-- Keep original startTime so session time is accurate
-	data.startTime = data.startTime or os.clock()
+	data.startTime = data.startTime or os.time()
 	return data
 end
 
@@ -934,7 +933,7 @@ end
 local sessionStats = LoadSessionStats()
 
 local function getSessionTime()
-	local elapsed = os.clock() - sessionStats.startTime
+	local elapsed = os.time() - sessionStats.startTime
 	local hours = math.floor(elapsed / 3600)
 	local mins = math.floor((elapsed % 3600) / 60)
 	local secs = math.floor(elapsed % 60)
@@ -942,17 +941,16 @@ local function getSessionTime()
 end
 
 local function getGoldPerHour()
-	local elapsed = (os.clock() - sessionStats.startTime) / 3600
+	local elapsed = (os.time() - sessionStats.startTime) / 3600
 	if elapsed < 0.01 then return 0 end
 	return math.floor(sessionStats.totalGold / elapsed)
 end
 
 local function getGamesPerHour()
-	local elapsed = (os.clock() - sessionStats.startTime) / 3600
+	local elapsed = (os.time() - sessionStats.startTime) / 3600
 	if elapsed < 0.01 then return 0 end
 	return math.floor(sessionStats.gamesPlayed / elapsed)
 end
-
 local webhook
 
 if rewards then
@@ -3257,7 +3255,7 @@ local labelAvgGold        = RatesGroup:AddLabel("Avg Gold / Game: 0")
 SessionGroup:AddButton({
 	Text = "Reset Session",
 	Func = function()
-		sessionStats.startTime   = os.clock()
+		sessionStats.startTime   = os.time()
 		sessionStats.gamesPlayed = 0
 		sessionStats.totalGold   = 0
 		sessionStats.totalGems   = 0
