@@ -170,7 +170,7 @@ task.spawn(function()
 				v:Destroy()
 			end
 		end
-		task.wait(1)
+		task.wait(2.5)
 	end
 end)
 
@@ -268,7 +268,7 @@ function AutoFarm:Start()
 
 		while self._running do
 			if lp:GetAttribute("Cutscene") then
-				task.wait()
+				task.wait(0.05)
 				continue
 			end
 
@@ -413,7 +413,7 @@ end
 								if not getgenv()._colossalCannonRunning then return end
 								local ref = cannonObj or workspace:FindFirstChild("Cannon")
 								if not ref then return end
-								for i = 1, 50 do
+								for i = 1, 30 do
 									local napePos = getLiveNapePos()
 									if napePos then
 										postRemote:FireServer("S_Skills", "Impact", ref, napePos)
@@ -464,7 +464,7 @@ end
 								if not napePart or not napePos then task.wait() continue end
 
 								-- Multi-hit: S_Explode x5 + Register per frame (no freeze)
-								for i = 1, 10 do
+								for i = 1, 8 do
 									postRemote:FireServer("Spears", "S_Explode", napePos)
 								end
 								postRemote:FireServer("Hitboxes", "Register", napePart, math.random(625, 850))
@@ -480,10 +480,12 @@ end
 
 
 
-			for i = 1, #charParts do
-				local p = charParts[i]
-				if p and p.Parent then p.CanCollide = false end
-			end
+if math.fmod(os.clock(), 0.5) < 0.05 then
+    for i = 1, #charParts do
+        local p = charParts[i]
+        if p and p.Parent then p.CanCollide = false end
+    end
+end
 
 			local now = os.clock()
 
@@ -690,7 +692,7 @@ end
 							end)
 						end
 					end
-					task.wait()
+					task.wait(0.05)
 					continue
 				end
 
@@ -713,7 +715,7 @@ end
 					root.CFrame = CFrame.new(targetHeightPos)
 				end
 
-				if not attackTitanReady then task.wait() continue end
+				if not attackTitanReady then task.wait(0.05) continue end
 
 				local dx = root.Position.X - targetPart.Position.X
 				local dz = root.Position.Z - targetPart.Position.Z
@@ -771,7 +773,7 @@ end
 								end
 								
 								-- Bosses take more damage / rapid fire
-								local loops = isBoss and 60 or 1
+								local loops = isBoss and 40 or 1
 								for j = 1, loops do
 									for _, nape in ipairs(hitTargets) do
 										postRemote:FireServer("Spears", "S_Explode", nape.Position)
@@ -785,7 +787,7 @@ end
 				root.AssemblyLinearVelocity = V3_ZERO
 			end
 
-			task.wait()
+			task.wait(0.05)
 		end
 	end)
 end
@@ -794,24 +796,6 @@ function AutoFarm:Stop()
 	self._running = false
 	getgenv()._colossalCannonRunning = false
 	getgenv()._colossalPhase2Running = false
-end
-
-local function ForceRetry()
-	task.spawn(function()
-		-- Try direct server remote first
-		pcall(function()
-			getRemote:InvokeServer("Functions", "Retry")
-		end)
-		pcall(function()
-			getRemote:InvokeServer("S_Missions", "Retry")
-		end)
-		-- Fallback: rejoin same server
-		task.wait(0.5)
-		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
-		if rewardsGui and rewardsGui.Visible then
-			TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, lp)
-		end
-	end)
 end
 
 local noclipConn = nil
@@ -869,11 +853,6 @@ local webhook
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
 		if not rewards.Visible then return end
-			if getgenv().ForceRetry then
-	task.wait(1)
-	ForceRetry()
-	return
-end
 
 		-- Reset mission start timer for next game
 		getgenv()._missionStartTime = nil
@@ -1063,9 +1042,11 @@ end
     name = "Information",
     value =
         "```\n" ..
-        "User: " .. lp.Name .. "\n" ..
-        "Games Played: " .. tostring(gamesPlayed) .. "\n" ..
-        "Executor: " .. executor .. "\n" ..
+       "User: " .. lp.Name .. "\n" ..
+"Games Played: " .. tostring(gamesPlayed) .. "\n" ..
+"Executor: " .. executor .. "\n" ..
+"Blacklisted: " .. (lp:GetAttribute("Blacklisted") == true and "YES ❌" or "No ✅") .. "\n" ..
+"Exploiter: " .. (lp:GetAttribute("Exploiter") == true and "YES ❌" or "No ✅") .. "\n" ..
         
 									"\n```",
     inline = true
@@ -1314,8 +1295,9 @@ local function setupAutoExecute()
 	if getgenv().AutoExecute and not getgenv().AutoExec then
 		getgenv().AutoExec = true
 		queue_on_teleport([[
-			repeat task.wait() until game:IsLoaded()
+		  repeat task.wait() until game:IsLoaded()
 			task.wait(5)
+			getgenv().AutoExec = false
 			loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/ins.lua"))()
 		]])
 	end
@@ -1341,10 +1323,10 @@ local function ExecuteImmediateAutomation()
 
 			if free and free.Visible then
 				UseButton(free)
-				task.wait(0.8)
+				task.wait(1.5)
 			elseif premium and premium.Visible and premium:FindFirstChild("Title") and not string.find(premium.Title.Text, "(0)") and getgenv().OpenSecondChest then
 				UseButton(premium)
-				task.wait(0.7)
+				task.wait(1.5)
 			elseif finish and finish.Visible then
 				UseButton(finish)
 			end
@@ -1376,7 +1358,7 @@ local function ExecuteImmediateAutomation()
             -- Method 3: Click via VirtualInputManager directly
             if retryBtn and retryBtn.Visible and retryBtn.Active then
                 -- Wait a bit for UI to fully load
-                task.wait(0.5)
+                task.wait(1)
                 
                 -- Try multiple click methods
                 local clicked = false
@@ -2049,6 +2031,7 @@ Toggles.NoclipToggle:OnChanged(function()
 	setNoclip(Toggles.NoclipToggle.Value)
 end)
 
+
 CombatGroup:AddToggle("AutoReloadToggle", {
 	Text = "Auto Reload/Refill",
 	Default = false,
@@ -2135,14 +2118,6 @@ MainGroup:AddToggle("AutoRetryToggle", {
 Toggles.AutoRetryToggle:OnChanged(function()
 	getgenv().AutoRetry = Toggles.AutoRetryToggle.Value
 	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
-end)
-
-MainGroup:AddToggle("ForceRetryToggle", {
-	Text = "Force Auto Retry",
-	Default = false,
-})
-Toggles.ForceRetryToggle:OnChanged(function()
-	getgenv().ForceRetry = Toggles.ForceRetryToggle.Value
 end)
 
 FeaturesGroup:AddToggle("DieAtStreakToggle", {
@@ -2521,6 +2496,37 @@ AutoStartGroup:AddDropdown("ModifiersDropdown", {
 	Multi = true,
 	Text = "Modifiers",
 })
+AutoStartGroup:AddToggle("AllModifiersToggle", {
+	Text = "Enable All Modifiers (Max Rewards)",
+	Default = false,
+})
+Toggles.AllModifiersToggle:OnChanged(function()
+	if Toggles.AllModifiersToggle.Value then
+		Options.ModifiersDropdown:SetValue({
+			["No Perks"]          = true,
+			["No Skills"]         = true,
+			["No Memories"]       = true,
+			["Nightmare"]         = true,
+			["Oddball"]           = true,
+			["Injury Prone"]      = true,
+			["Chronic Injuries"]  = true,
+			["Fog"]               = true,
+			["Glass Cannon"]      = true,
+		})
+		Library:Notify({
+			Title = "Auto Start",
+			Description = "All 9 modifiers enabled!",
+			Time = 3
+		})
+	else
+		Options.ModifiersDropdown:SetValue({})
+		Library:Notify({
+			Title = "Auto Start",
+			Description = "Modifiers cleared!",
+			Time = 3
+		})
+	end
+end)
 
 -- Trigger type initialization
 task.defer(function()
