@@ -845,6 +845,7 @@ local function startCrashDetection()
 
 				if not titans and not unclimbable then
 					sessionStats.crashes = sessionStats.crashes + 1
+						SaveSessionStats()
 					Library:Notify({
 						Title = "Auto Rejoin",
 						Description = "Crash detected! Rejoining... (" .. sessionStats.crashes .. " total)",
@@ -893,16 +894,44 @@ local path = "./THUB1/aotr/games_played.txt"
 if not isfile(path) then writefile(path, "0") end
 local gamesPlayed = tonumber(readfile(path))
 -- Session Stats tracking
-local sessionStats = {
-	startTime = os.clock(),
-	gamesPlayed = 0,
-	totalGold = 0,
-	totalGems = 0,
-	totalXP = 0,
-	totalKills = 0,
-	mythicalDrops = 0,
-	crashes = 0,
-}
+local statsPath = "./THUB1/aotr/session_stats.json"
+
+local function LoadSessionStats()
+	if not isfile(statsPath) then
+		return {
+			startTime = os.clock(),
+			gamesPlayed = 0,
+			totalGold = 0,
+			totalGems = 0,
+			totalXP = 0,
+			totalKills = 0,
+			mythicalDrops = 0,
+			crashes = 0,
+		}
+	end
+	local ok, data = pcall(HttpService.JSONDecode, HttpService, readfile(statsPath))
+	if not ok or not data then
+		return {
+			startTime = os.clock(),
+			gamesPlayed = 0,
+			totalGold = 0,
+			totalGems = 0,
+			totalXP = 0,
+			totalKills = 0,
+			mythicalDrops = 0,
+			crashes = 0,
+		}
+	end
+	-- Keep original startTime so session time is accurate
+	data.startTime = data.startTime or os.clock()
+	return data
+end
+
+local function SaveSessionStats()
+	pcall(writefile, statsPath, HttpService:JSONEncode(sessionStats))
+end
+
+local sessionStats = LoadSessionStats()
 
 local function getSessionTime()
 	local elapsed = os.clock() - sessionStats.startTime
@@ -948,6 +977,7 @@ if rewards then
 		if data.Special and next(data.Special) then
 			sessionStats.mythicalDrops = sessionStats.mythicalDrops + 1
 		end
+			SaveSessionStats() 
 
 		local gamesUntilReturn = tonumber(readfile(returnCounterPath)) or 0
 		local willReturn = false
@@ -3235,6 +3265,7 @@ SessionGroup:AddButton({
 		sessionStats.totalKills  = 0
 		sessionStats.mythicalDrops = 0
 		sessionStats.crashes     = 0
+		SaveSessionStats() -- clear file too
 		Library:Notify({ Title = "Stats", Description = "Session reset!", Time = 2 })
 	end,
 })
