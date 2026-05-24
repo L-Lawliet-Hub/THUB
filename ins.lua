@@ -142,7 +142,9 @@ local function SaveSessionStats()
 	writefile("./THUB1/aotr/s_xp.txt",        tostring(sessionStats.totalXP))
 	writefile("./THUB1/aotr/s_mythicals.txt", tostring(sessionStats.mythicalDrops))
 	writefile("./THUB1/aotr/s_crashes.txt",   tostring(sessionStats.crashes))
-	writefile("./THUB1/aotr/s_start.txt",     tostring(sessionStats.startTime))
+	-- Save elapsed time so timer pauses when script is off
+	local elapsed = os.time() - sessionStats.startTime
+	writefile("./THUB1/aotr/s_elapsed.txt",   tostring(elapsed))
 end
 
 local function LoadSessionStats()
@@ -152,8 +154,10 @@ local function LoadSessionStats()
 		end
 		return default
 	end
+	-- Resume timer from saved elapsed so time doesnt count when script is off
+	local savedElapsed = rf("./THUB1/aotr/s_elapsed.txt", 0)
 	return {
-		startTime     = rf("./THUB1/aotr/s_start.txt",     os.time()),
+		startTime     = os.time() - savedElapsed,
 		gamesPlayed   = rf("./THUB1/aotr/s_games.txt",     0),
 		totalGold     = rf("./THUB1/aotr/s_gold.txt",      0),
 		totalGems     = rf("./THUB1/aotr/s_gems.txt",      0),
@@ -1662,7 +1666,7 @@ local Tabs = {
 	Utility  = Window:AddTab("Utils",  "zap"),
 	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
 	Global   = Window:AddTab("Central",   "compass"),
-	Stats    = Window:AddTab("Stats",    "bar-chart"),
+	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
 }
 
@@ -2939,6 +2943,7 @@ SessionGroup:AddButton({
 		sessionStats.totalKills   = 0
 		sessionStats.mythicalDrops = 0
 		sessionStats.crashes      = 0
+		writefile("./THUB1/aotr/s_elapsed.txt", "0") -- reset elapsed too
 		SaveSessionStats()
 		Library:Notify({ Title = "Stats", Description = "Session reset!", Time = 2 })
 	end,
