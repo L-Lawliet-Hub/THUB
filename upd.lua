@@ -40,8 +40,6 @@ local function GetPlayerData()
 	return lastPlayerData
 end
 
--- Map data and plr data don't update when I call them so I only need to call them when i need them, not in a loop
-
 local mapData = nil
 
 local startLoadTime = os.clock()
@@ -63,12 +61,12 @@ if mapData then
 		repeat task.wait() until workspace:GetAttribute("Finalised")
 	end
 end
+
 local function checkMission()
 	local activeType = workspace:GetAttribute("Type")
 	if activeType then return true end
-	
-    mapData = getRemote:InvokeServer("Data", "Copy")
-    return mapData ~= nil and mapData.Map ~= nil and mapData.Slots ~= nil
+	mapData = getRemote:InvokeServer("Data", "Copy")
+	return mapData ~= nil and mapData.Map ~= nil and mapData.Slots ~= nil
 end
 
 local familyRaritiesOptions = {
@@ -133,13 +131,74 @@ function UpdateStatus(text)
 	end
 end
 
+-- ==========================================
+-- SESSION STATS (defined first so everything can use it)
+-- ==========================================
+
+local function SaveSessionStats()
+	writefile("./THUB1/aotr/s_games.txt",     tostring(sessionStats.gamesPlayed))
+	writefile("./THUB1/aotr/s_gold.txt",      tostring(sessionStats.totalGold))
+	writefile("./THUB1/aotr/s_gems.txt",      tostring(sessionStats.totalGems))
+	writefile("./THUB1/aotr/s_xp.txt",        tostring(sessionStats.totalXP))
+	writefile("./THUB1/aotr/s_mythicals.txt", tostring(sessionStats.mythicalDrops))
+	writefile("./THUB1/aotr/s_crashes.txt",   tostring(sessionStats.crashes))
+	-- Save elapsed time so timer pauses when script is off
+	local elapsed = os.time() - sessionStats.startTime
+	writefile("./THUB1/aotr/s_elapsed.txt",   tostring(elapsed))
+end
+
+local function LoadSessionStats()
+	local function rf(path, default)
+		if isfile(path) then
+			return tonumber(readfile(path)) or default
+		end
+		return default
+	end
+	-- Resume timer from saved elapsed so time doesnt count when script is off
+	local savedElapsed = rf("./THUB1/aotr/s_elapsed.txt", 0)
+	return {
+		startTime     = os.time() - savedElapsed,
+		gamesPlayed   = rf("./THUB1/aotr/s_games.txt",     0),
+		totalGold     = rf("./THUB1/aotr/s_gold.txt",      0),
+		totalGems     = rf("./THUB1/aotr/s_gems.txt",      0),
+		totalXP       = rf("./THUB1/aotr/s_xp.txt",        0),
+		totalKills    = 0,
+		mythicalDrops = rf("./THUB1/aotr/s_mythicals.txt", 0),
+		crashes       = rf("./THUB1/aotr/s_crashes.txt",   0),
+	}
+end
+
+sessionStats = LoadSessionStats()
+
+local function getSessionTime()
+	local elapsed = os.time() - sessionStats.startTime
+	local hours = math.floor(elapsed / 3600)
+	local mins = math.floor((elapsed % 3600) / 60)
+	local secs = math.floor(elapsed % 60)
+	return string.format("%02d:%02d:%02d", hours, mins, secs)
+end
+
+local function getGoldPerHour()
+	local elapsed = (os.time() - sessionStats.startTime) / 3600
+	if elapsed < 0.01 then return 0 end
+	return math.floor(sessionStats.totalGold / elapsed)
+end
+
+local function getGamesPerHour()
+	local elapsed = (os.time() - sessionStats.startTime) / 3600
+	if elapsed < 0.01 then return 0 end
+	return math.floor(sessionStats.gamesPlayed / elapsed)
+end
+
+-- ==========================================
+-- AUTO FARM
+-- ==========================================
 
 local AutoFarm = {}
 AutoFarm._running = false
 
--- Auto restart AutoFarm when character respawns (after retry teleport)
 lp.CharacterAdded:Connect(function()
-	task.wait(3) -- wait for map to load
+	task.wait(3)
 	if Toggles and Toggles.AutoKillToggle and Toggles.AutoKillToggle.Value then
 		AutoFarm:Stop()
 		task.wait(0.5)
@@ -155,7 +214,6 @@ getgenv().AutoFarmConfig = {
 	HeightOffset = 250,
 	MovementMode = "Hover",
 }
-
 
 getgenv().MasteryFarmConfig = {
 	Enabled = false,
@@ -176,10 +234,7 @@ end)
 
 function AutoFarm:Start()
 	if self._running then return end
-	
-	if isLobby then
-		return
-	end
+	if isLobby then return end
 
 	self._running = true
 	task.spawn(function()
@@ -188,10 +243,7 @@ function AutoFarm:Start()
 		local function checkReady()
 			local char = lp.Character
 			local playerReady = char and (char:GetAttribute("Shifter") or (char:FindFirstChild("Main") and char.Main:FindFirstChild("W")))
-			
-			-- mapReady: only check Unclimbable exists (GasTanks/Refill may not exist on all maps)
 			local mapReady = workspace:FindFirstChild("Unclimbable") ~= nil
-				
 			local titans = workspace:FindFirstChild("Titans")
 			local titansReady = false
 			if titans then
@@ -202,13 +254,12 @@ function AutoFarm:Start()
 					end
 				end
 			end
-			
 			return playerReady and mapReady and titansReady
 		end
 
 		local startTime = os.clock()
 		while self._running and not checkReady() do
-			if os.clock() - startTime > 10 then -- Notify every 10s if still waiting
+			if os.clock() - startTime > 10 then
 				Library:Notify({
 					Title = "TITANIC HUB",
 					Description = "Still waiting for mission assets to load...",
@@ -226,13 +277,6 @@ function AutoFarm:Start()
 		local lastAttack = 0
 		local currentChar, root, charParts = nil, nil, {}
 
-		-- INTERFACE.ChildAdded:Connect(function(v)
-		-- 	if tonumber(v.Name) then
-		-- 		v:Destroy()
-		-- 	end
-		-- end)
-		
-		-- Hash map for faster O(1) lookups
 		local bossNames = {Attack_Titan = true, Armored_Titan = true, Female_Titan = true, Colossal_Titan = true}
 		local attackTitanSpawnTime = nil
 		local AttackRangeSq = getgenv().AutoFarmConfig.AttackRange * getgenv().AutoFarmConfig.AttackRange
@@ -242,7 +286,6 @@ function AutoFarm:Start()
 			if not char then return false end
 			local hrp = char:FindFirstChild("HumanoidRootPart")
 			if not hrp then return false end
-
 			if char ~= currentChar then
 				currentChar = char
 				root = hrp
@@ -261,8 +304,6 @@ function AutoFarm:Start()
 		local nextTitanCacheUpdate = 0
 		local nextObjectiveCacheUpdate = 0
 		local cachedObjectivePart = nil
-		local missionStartTime = nil  -- reset each mission for last-titan wait
-
 		local masteryComboIndex = 1
 		local lastMasteryPunch = 0
 
@@ -287,25 +328,18 @@ function AutoFarm:Start()
 				continue
 			end
 
-           -- Die at Streak check (AutoFarm loop mein)
-if getgenv().DieAtStreak then
-    -- Streak HUD se nikaalo (Interface mein likha hota hai)
-    local streakLabel = PlayerGui.Interface.HUD.Main.Top:FindFirstChild("Streak") or 
-                        PlayerGui.Interface.HUD:FindFirstChild("Streak")
-    
-    if not streakLabel then
-        -- Alternative: Attributes se check karo
-        local streak = lp:GetAttribute("Streak") or 0
-        if streak >= (getgenv().DieAtStreakCount or 10000) then
-            local char = lp.Character
-            if char then
-                local hum = char:FindFirstChild("Humanoid")
-                if hum then hum.Health = 0 end
-            end
-        end
-    end
-end
-				
+			-- Die at Streak check
+			if getgenv().DieAtStreak then
+				local streak = lp:GetAttribute("Streak") or 0
+				if streak >= (getgenv().DieAtStreakCount or 10000) then
+					local char = lp.Character
+					if char then
+						local hum = char:FindFirstChild("Humanoid")
+						if hum then hum.Health = 0 end
+					end
+				end
+			end
+
 			if slotData.Weapon == "Blades" then 
 				getgenv().AutoFarmConfig.AttackCooldown = 0.15 
 			else 
@@ -313,13 +347,11 @@ end
 			end
 
 			if getgenv().AutoFailsafe then
-				-- Track mission start time
 				if not self.missionStartTime then
 					self.missionStartTime = os.clock()
 				end
-				
 				local missionElapsedTime = os.clock() - self.missionStartTime
-				if missionElapsedTime >= 900 then  -- 15 minutes (900 seconds)
+				if missionElapsedTime >= 900 then
 					self:Stop()
 					task.spawn(function() getRemote:InvokeServer("Functions", "Teleport", "Lobby") end)
 					task.wait(0.5)
@@ -337,34 +369,28 @@ end
 				break
 			end
 			
-			if not updateCharState() then task.wait(); continue end
+			if not updateCharState() then task.wait(0.05) continue end
 
-			-- CRITICAL: Refresh titansFolder to see new spawns
 			titansFolder = workspace:FindFirstChild("Titans") or titansFolder
 
-			-- Map and Folder Paths
-			local ws_ObjectiveFolder = workspace:FindFirstChild("Unclimbable") and workspace.Unclimbable:FindFirstChild("Objective") -- contains models of for example armored_boss or like female titan
-			local rs_ObjectiveFolder = ReplicatedStorage:FindFirstChild("Objectives") -- this contains the objective intvalues (displayed in gui)
+			local ws_ObjectiveFolder = workspace:FindFirstChild("Unclimbable") and workspace.Unclimbable:FindFirstChild("Objective")
+			local rs_ObjectiveFolder = ReplicatedStorage:FindFirstChild("Objectives")
 			local mapType = workspace:GetAttribute("Type") or (mapData and mapData.Map and mapData.Map.Type)
 
-			-- Armored Raid Detection
 			local isArmoredRaid = ws_ObjectiveFolder:FindFirstChild("Armored_Boss")
 			local isFemaleRaid = rs_ObjectiveFolder:FindFirstChild("Defeat_Annie")
 			local femaleExists = ws_ObjectiveFolder:FindFirstChild("Female_Boss")
 			local attackExists = ws_ObjectiveFolder:FindFirstChild("Attack_Boss")
 			local armoredTitan = titansFolder and titansFolder:FindFirstChild("Armored_Titan")
-            local hasReinerObjective = armoredTitan and armoredTitan:GetAttribute("State")
+			local hasReinerObjective = armoredTitan and armoredTitan:GetAttribute("State")
 			local isColossalRaid = rs_ObjectiveFolder:FindFirstChild("Defeat_Bertholdt") or ws_ObjectiveFolder:FindFirstChild("Colossal_Boss")
 
-			-- Stohess Transition Pause: Only if it IS a female raid and bosses are missing
 			if isFemaleRaid and not femaleExists and not attackExists then
-				task.wait()
+				task.wait(0.05)
 				continue
 			end
 
-			-- ==========================================
-			-- COLOSSAL RAID: Phase 1 — Cannon Only
-			-- ==========================================
+			-- COLOSSAL RAID: Phase 1
 			if isColossalRaid then
 				local stallObjective = rs_ObjectiveFolder:FindFirstChild("Stall_Colossal_Titan")
 				local stallDone = stallObjective and stallObjective.Value >= (stallObjective:GetAttribute("Requirement") or 1)
@@ -372,13 +398,11 @@ end
 				if not stallDone then
 					UpdateStatus("Colossal Raid - Phase 1: Cannon Stalling...")
 
-					-- Exact cannon path from log: workspace.Climbable.Walls.Wall.Cannons["1"]
 					local walls = workspace:FindFirstChild("Climbable") and workspace.Climbable:FindFirstChild("Walls")
 					local cannonModel = walls and walls:FindFirstChild("Wall") and
 						walls.Wall:FindFirstChild("Cannons") and
 						walls.Wall.Cannons:FindFirstChild("1")
 
-					-- Fallback: search all named walls
 					if not cannonModel and walls then
 						for _, wall in ipairs(walls:GetChildren()) do
 							local c = wall:FindFirstChild("Cannons") and wall.Cannons:FindFirstChild("1")
@@ -389,14 +413,11 @@ end
 					if cannonModel and not getgenv()._colossalCannonRunning then
 						getgenv()._colossalCannonRunning = true
 						task.spawn(function()
-
 							local function getLiveNapePos()
 								local ct = titansFolder:FindFirstChild("Colossal_Titan")
 								if not ct then return nil end
 								local hit = ct:FindFirstChild("Hitboxes") and ct.Hitboxes:FindFirstChild("Hit")
-								if hit and hit:FindFirstChild("Nape") then
-									return hit.Nape.Position
-								end
+								if hit and hit:FindFirstChild("Nape") then return hit.Nape.Position end
 								local fake = ct:FindFirstChild("Fake")
 								local head = fake and fake:FindFirstChild("Head")
 								return head and head.Position or nil
@@ -407,7 +428,6 @@ end
 								return so and so.Value >= (so:GetAttribute("Requirement") or 1)
 							end
 
-							-- Server fires "Skills","Impact" when cannon projectile is active → spam S_Skills Impact
 							local impactConn = postRemote.OnClientEvent:Connect(function(a1, a2, cannonObj, hitbox, ...)
 								if a1 ~= "Skills" or a2 ~= "Impact" then return end
 								if not getgenv()._colossalCannonRunning then return end
@@ -421,12 +441,10 @@ end
 								end
 							end)
 
-							-- Cannon loop: fire → 2s cooldown window used for Eren defend (main loop runs freely)
 							while self._running and not isStallDone() do
 								getRemote:InvokeServer("Cannon", "State", cannonModel, true)
 								task.wait(0.1)
 								getRemote:InvokeServer("Cannon", "Shoot", {BarrelWood = 40, Base = 0})
-								-- 2s cooldown — main loop kills titans during this time (no continue below)
 								task.wait(2)
 							end
 
@@ -436,11 +454,7 @@ end
 							UpdateStatus("Colossal Raid - Phase 1 Complete!")
 						end)
 					end
-
-					-- Phase 1: fall through → main loop kills titans for Eren defense during cooldown
-
 				else
-					-- Phase 2: stall done → multi-hit Colossal nape
 					getgenv()._colossalCannonRunning = false
 
 					if not getgenv()._colossalPhase2Running then
@@ -453,23 +467,18 @@ end
 								if not ct then return nil, nil end
 								local hit = ct:FindFirstChild("Hitboxes") and ct.Hitboxes:FindFirstChild("Hit")
 								local nape = hit and hit:FindFirstChild("Nape")
-								if nape then
-									return nape, nape.Position + Vector3.new(0, 4, 0)
-								end
+								if nape then return nape, nape.Position + Vector3.new(0, 4, 0) end
 								return nil, nil
 							end
 
 							while self._running do
 								local napePart, napePos = getNapeTarget()
 								if not napePart or not napePos then task.wait() continue end
-
-								-- Multi-hit: S_Explode x5 + Register per frame (no freeze)
 								for i = 1, 8 do
 									postRemote:FireServer("Spears", "S_Explode", napePos)
 								end
 								postRemote:FireServer("Hitboxes", "Register", napePart, math.random(625, 850))
-
-								task.wait() -- one frame yield → no screen freeze
+								task.wait()
 							end
 
 							getgenv()._colossalPhase2Running = false
@@ -478,22 +487,18 @@ end
 				end
 			end
 
-
-
-if math.fmod(os.clock(), 0.5) < 0.05 then
-    for i = 1, #charParts do
-        local p = charParts[i]
-        if p and p.Parent then p.CanCollide = false end
-    end
-end
+			if math.fmod(os.clock(), 0.5) < 0.05 then
+				for i = 1, #charParts do
+					local p = charParts[i]
+					if p and p.Parent then p.CanCollide = false end
+				end
+			end
 
 			local now = os.clock()
-
 			local isShifted = currentChar and currentChar:GetAttribute("Shifter") or false
 			
 			if getgenv().MasteryFarmConfig.Enabled then
 				local shiftReady = lp:GetAttribute("Bar") and lp:GetAttribute("Bar") == 100
-
 				if not isShifted and shiftReady then
 					repeat 
 						getRemote:InvokeServer("S_Skills", "Usage", "999", false) 
@@ -502,9 +507,10 @@ end
 					continue
 				end
 			end
+
 			if now >= nextTitanCacheUpdate then
 				nextTitanCacheUpdate = now + 0.1
-				table.clear(validNapes) -- Reuse memory
+				table.clear(validNapes)
 				for _, v in ipairs(titansFolder:GetChildren()) do
 					if v:GetAttribute("Killed") then continue end
 					local hit = v:FindFirstChild("Hitboxes") and v.Hitboxes:FindFirstChild("Hit")
@@ -539,7 +545,6 @@ end
 				objectiveFound = true
 			end
 
-			-- Range limit logic: Only for Phase 1 of Armored Raid
 			local useRangeLimit = objectiveFound and isArmoredRaid and not hasReinerObjective
 			local closestDist, closestNape = math.huge, nil
 			local closestIsBoss = false
@@ -547,8 +552,6 @@ end
 			local attackTitanFound = false
 			local highestZ = -math.huge
 			local isStall = mapData and mapData.Map and mapData.Map.Objective == "Stall"
-
-
 			local bossIsRoaring = false
 
 			for i = 1, #validNapes do
@@ -562,15 +565,10 @@ end
 				local tName = titanModel.Name
 				local isBoss = bossNames[tName]
 
-				-- Boss Phase logic: Skip Armored Titan ONLY during Protect phase
 				if isArmoredRaid and not hasReinerObjective and tName == "Armored_Titan" then continue end
 
-				-- Colossal Phase 1: Don't attack Colossal nape with blades/spears (cannon handles it)
-				-- Colossal Phase 2: Phase2 spawn loop handles Colossal → main loop kills regular titans only
 				if isColossalRaid then
-					local stallObjective = rs_ObjectiveFolder:FindFirstChild("Stall_Colossal_Titan")
-					local stallDone = stallObjective and stallObjective.Value >= (stallObjective:GetAttribute("Requirement") or 1)
-					if tName == "Colossal_Titan" then continue end -- always skip: cannon/phase2 loop handles it
+					if tName == "Colossal_Titan" then continue end
 				end
 		
 				if isBoss and not titanModel:GetAttribute("State") then continue end
@@ -583,7 +581,6 @@ end
 				local dz = referencePos.Z - nape.Position.Z
 				local d = dx*dx + dz*dz
 				
-				-- Hysteresis: Keep target lock-on
 				local adjustedDist = d
 				if getgenv()._currentTargetNape == nape then
 					adjustedDist = adjustedDist - 15000
@@ -614,24 +611,18 @@ end
 				end
 			end
 
-
 			local targetPart = bossHitPoint or closestNape
 			local targetIsRoaring = (targetPart ~= nil and targetPart == bossHitPoint) and bossIsRoaring or false
 			
-			-- Priotize clearing regular titans near objective if range limit is on
 			if useRangeLimit and closestNape then
 				targetPart = closestNape
 				targetIsRoaring = false
 			end
 
-			
-			-- Track mission start (reset on each new mission)
 			if not getgenv()._missionStartTime then
 				getgenv()._missionStartTime = os.clock()
 			end
 
-			-- Keep last titan alive for at least 10 seconds (vanilla)
-			-- OR for user-defined wait if LastTitanWait is on
 			if targetPart and #validNapes == 1 and mapType == "Missions" then
 				local elapsed = os.clock() - getgenv()._missionStartTime
 				local requiredWait = getgenv().LastTitanWait and getgenv().LastTitanWaitSecs or 10
@@ -653,7 +644,6 @@ end
 
 			if targetPart then
 				UpdateStatus(closestIsBoss and "Attacking Boss..." or "Farming Titans...")
-				-- Traverse up to find the root Titan Model cleanly
 				local currentTitanModel = targetPart
 				while currentTitanModel and currentTitanModel.Parent ~= titansFolder do
 					currentTitanModel = currentTitanModel.Parent
@@ -696,12 +686,9 @@ end
 					continue
 				end
 
-				-- Calculate position (You can add extra height here if needed to avoid the roar hitbox)
-				-- Use Titan HRP CFrame to stay in a stable position relative to the body (stops spinning)
 				local titanHRP = currentTitanModel:FindFirstChild("HumanoidRootPart")
 				local targetHeightPos
 				if titanHRP then
-					-- This puts you at the HeightOffset above, and 30 studs BEHIND the Titan
 					targetHeightPos = (titanHRP.CFrame * CFrame.new(0, getgenv().AutoFarmConfig.HeightOffset, 30)).Position
 				else
 					targetHeightPos = targetPart.Position + Vector3.new(0, getgenv().AutoFarmConfig.HeightOffset, 0)
@@ -723,7 +710,6 @@ end
 				if not targetIsRoaring and (dx*dx + dz*dz) <= AttackRangeSq and (now - lastAttack) >= getgenv().AutoFarmConfig.AttackCooldown then
 					lastAttack = now
 
-					-- Build list of napes to hit this tick
 					local hitTargets = { targetPart }
 					if getgenv().MultiHit then
 						local count = 1
@@ -762,7 +748,6 @@ end
 								getRemote:InvokeServer("Spears", "S_Fire", tostring(currentAmmo))
 								local afterAmmo = getAmmo()
 
-								-- Retry if ammo didn't decrement (anti-lag)
 								if afterAmmo and beforeAmmo and afterAmmo == beforeAmmo then
 									for j = maxAmmo, 1, -1 do
 										local prevAmmo = getAmmo()
@@ -772,7 +757,6 @@ end
 									end
 								end
 								
-								-- Bosses take more damage / rapid fire
 								local loops = isBoss and 40 or 1
 								for j = 1, loops do
 									for _, nape in ipairs(hitTargets) do
@@ -798,11 +782,14 @@ function AutoFarm:Stop()
 	getgenv()._colossalPhase2Running = false
 end
 
+-- ==========================================
+-- NOCLIP
+-- ==========================================
+
 local noclipConn = nil
 local function setNoclip(enabled)
 	if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
 	if not enabled then
-		-- Re-enable collisions on current character
 		local char = lp.Character
 		if char then
 			for _, p in ipairs(char:GetDescendants()) do
@@ -819,6 +806,59 @@ local function setNoclip(enabled)
 		end
 	end)
 end
+
+-- ==========================================
+-- AUTO REJOIN ON CRASH
+-- ==========================================
+
+local lastMissionState = false
+local crashCheckRunning = false
+
+local function startCrashDetection()
+	if crashCheckRunning then return end
+	crashCheckRunning = true
+	task.spawn(function()
+		while crashCheckRunning do
+			task.wait(10)
+			if not getgenv().AutoRejoin then continue end
+			if isLobby then continue end
+			if not AutoFarm._running then continue end
+
+			local titans = workspace:FindFirstChild("Titans")
+			local unclimbable = workspace:FindFirstChild("Unclimbable")
+
+			if not titans and not unclimbable then
+				task.wait(10)
+				titans = workspace:FindFirstChild("Titans")
+				unclimbable = workspace:FindFirstChild("Unclimbable")
+
+				if not titans and not unclimbable then
+					sessionStats.crashes = sessionStats.crashes + 1
+					SaveSessionStats()
+					Library:Notify({
+						Title = "Auto Rejoin",
+						Description = "Crash detected! Rejoining... (" .. sessionStats.crashes .. " total)",
+						Time = 5
+					})
+
+					AutoFarm:Stop()
+					task.wait(0.5)
+					pcall(function() getRemote:InvokeServer("Functions", "Teleport", "Lobby") end)
+					task.wait(0.5)
+					pcall(function() TeleportService:Teleport(14916516914, lp) end)
+				end
+			end
+		end
+	end)
+end
+
+local function stopCrashDetection()
+	crashCheckRunning = false
+end
+
+-- ==========================================
+-- HELPERS
+-- ==========================================
 
 local function formatTable(tbl)
 	local str = ""
@@ -850,21 +890,40 @@ local gamesPlayed = tonumber(readfile(path))
 
 local webhook
 
+-- ==========================================
+-- REWARDS LISTENER
+-- ==========================================
+
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
 		if not rewards.Visible then return end
 
-		-- Reset mission start timer for next game
+		-- Reset mission start timer
 		getgenv()._missionStartTime = nil
 
-	gamesPlayed = gamesPlayed + 1
+		gamesPlayed = gamesPlayed + 1
 		writefile("./THUB1/aotr/games_played.txt", tostring(gamesPlayed))
+
+		-- Update session stats
+		sessionStats.gamesPlayed = sessionStats.gamesPlayed + 1
+		pcall(function()
+			local res = getRemote:InvokeServer("S_Rewards", "Get", true)
+			if res and res.Obtained then
+				sessionStats.totalGold = sessionStats.totalGold + (res.Obtained.Gold or 0)
+				sessionStats.totalGems = sessionStats.totalGems + (res.Obtained.Gems or 0)
+				sessionStats.totalXP = sessionStats.totalXP + (res.Obtained.XP or 0)
+			end
+		end)
+		if data.Special and next(data.Special) then
+			sessionStats.mythicalDrops = sessionStats.mythicalDrops + 1
+		end
+		SaveSessionStats()
 
 		local gamesUntilReturn = tonumber(readfile(returnCounterPath)) or 0
 		local willReturn = false
 
 		if getgenv().AutoReturnLobby then
-	gamesUntilReturn = gamesUntilReturn + 1
+			gamesUntilReturn = gamesUntilReturn + 1
 
 			if gamesUntilReturn >= getgenv().ReturnAfterGames then
 				gamesUntilReturn = 0
@@ -877,20 +936,17 @@ if rewards then
 				task.spawn(function()
 					getRemote:InvokeServer("Functions", "Teleport", "Lobby")
 				end)
-				
 				task.wait(0.5)
 				TeleportService:Teleport(14916516914, lp)
 				return
 			end
 		elseif gamesUntilReturn >= getgenv().ReturnAfterGames then
-			-- safety reset
 			gamesUntilReturn = 0
 			writefile(returnCounterPath, "0")
 		end
 		
 		if not getgenv().RewardWebhook then return end
 		
-		-- Wait for stats to populate properly (check for non-zero or non-placeholder)
 		local start = os.clock()
 		local hasData
 		repeat 
@@ -909,14 +965,12 @@ if rewards then
 		data.Items = {}
 		data.Special = {}
 
-		-- Capture Stats from UI
 		for i, v in ipairs(statsFrame:GetChildren()) do
 			if v:IsA("Frame") and v:FindFirstChild("Stat") and v:FindFirstChild("Amount") then
 				data.Stats[string.gsub(v.Name, "_", " ")] = v.Amount.Text
 			end
 		end
 
-		-- data.Items: server se sahi naam milte hain (GUI frames ke numeric names ki jagah)
 		pcall(function()
 			local res = getRemote:InvokeServer("S_Rewards", "Get", true)
 			if res and res.Obtained then
@@ -948,60 +1002,45 @@ if rewards then
 			end
 		end)
 
-		-- data.Special: UI se red rarity color check (original accurate method)
-		-- data.Special: UI se red rarity color check (FIXED - actual name find karega)
-if itemsFrame then
-    for i, v in ipairs(itemsFrame:GetChildren()) do
-        if v:IsA("Frame") and v:FindFirstChild("Main") then
-            local inner = v.Main:FindFirstChild("Inner")
-            if inner then
-                -- Sirf wahi items jo RED background hain (Mythic)
-                if inner:FindFirstChild("Rarity") and inner.Rarity.BackgroundColor3 == Color3.fromRGB(255, 0, 0) then
-                    
-                    -- Item ka ACTUAL naam dhundo
-                    local itemName = nil
-                    
-                    -- Method 1: Check "Title" TextLabel inside Inner
-                    local titleLabel = inner:FindFirstChild("Title")
-                    if titleLabel and titleLabel:IsA("TextLabel") and titleLabel.Text ~= "" and not tonumber(titleLabel.Text) then
-                        itemName = titleLabel.Text
-                    end
-                    
-                    -- Method 2: Check ALL TextLabels inside Inner for a non-numeric text
-                    if not itemName then
-                        for _, child in ipairs(inner:GetDescendants()) do
-                            if child:IsA("TextLabel") and child.Text ~= "" then
-                                local text = child.Text
-                                -- Mythic item names are usually strings, not numbers
-                                if not tonumber(text) and #text > 2 and text ~= "Quantity" then
-                                    itemName = text
-                                    break
-                                end
-                            end
-                        end
-                    end
-                    
-                    -- Method 3: Check the "Rarity" frame itself for a label
-                    if not itemName then
-                        local rarityFrame = inner:FindFirstChild("Rarity")
-                        if rarityFrame then
-                            for _, child in ipairs(rarityFrame:GetDescendants()) do
-                                if child:IsA("TextLabel") and child.Text ~= "" and not tonumber(child.Text) then
-                                    itemName = child.Text
-                                    break
-                                end
-                            end
-                        end
-                    end
-                    
-        
-                    
-                    data.Special[itemName] = inner.Quantity.Text
-                end
-            end
-        end
-    end
-end
+		if itemsFrame then
+			for i, v in ipairs(itemsFrame:GetChildren()) do
+				if v:IsA("Frame") and v:FindFirstChild("Main") then
+					local inner = v.Main:FindFirstChild("Inner")
+					if inner then
+						if inner:FindFirstChild("Rarity") and inner.Rarity.BackgroundColor3 == Color3.fromRGB(255, 0, 0) then
+							local itemName = nil
+							local titleLabel = inner:FindFirstChild("Title")
+							if titleLabel and titleLabel:IsA("TextLabel") and titleLabel.Text ~= "" and not tonumber(titleLabel.Text) then
+								itemName = titleLabel.Text
+							end
+							if not itemName then
+								for _, child in ipairs(inner:GetDescendants()) do
+									if child:IsA("TextLabel") and child.Text ~= "" then
+										local text = child.Text
+										if not tonumber(text) and #text > 2 and text ~= "Quantity" then
+											itemName = text
+											break
+										end
+									end
+								end
+							end
+							if not itemName then
+								local rarityFrame = inner:FindFirstChild("Rarity")
+								if rarityFrame then
+									for _, child in ipairs(rarityFrame:GetDescendants()) do
+										if child:IsA("TextLabel") and child.Text ~= "" and not tonumber(child.Text) then
+											itemName = child.Text
+											break
+										end
+									end
+								end
+							end
+							data.Special[itemName] = inner.Quantity.Text
+						end
+					end
+				end
+			end
+		end
 
 		local currentSlot = lp:GetAttribute("Slot") or "A"
 		local slotData = mapData and mapData.Slots and mapData.Slots[currentSlot]
@@ -1010,82 +1049,68 @@ end
 		if slotData then
 			if slotData.Currency then
 				for i, v in pairs(slotData.Currency) do
-					if i == "Gems" or i == "Gold" then
-						data.Total[i] = v
-					end
+					if i == "Gems" or i == "Gold" then data.Total[i] = v end
 				end
 			end
 			if slotData.Progression then
 				for i, v in pairs(slotData.Progression) do
-					if i == "Prestige" or i == "Level" or i == "Streak" then
-						data.Total[i] = v
-					end
+					if i == "Prestige" or i == "Level" or i == "Streak" then data.Total[i] = v end
 				end
 			end
 		end
 
 		local hasSpecial = data.Special and next(data.Special) ~= nil
 
-		
-			
-		
 		if webhook and webhook ~= "" then
 			local payload = {
-					content = hasSpecial and "MYTHICAL DROP! @everyone" or nil,
-					embeds = {{
-						title = "TH Rewards",
-						color = hasSpecial and 16711680 or 2829617,
-
-
-						fields = {
-							{
-    name = "Information",
-    value =
-        "```\n" ..
-       "User: " .. lp.Name .. "\n" ..
-"Games Played: " .. tostring(gamesPlayed) .. "\n" ..
-"Executor: " .. executor .. "\n" ..
-"Blacklisted: " .. (lp:GetAttribute("Blacklisted") == true and "YES ❌" or "No ✅") .. "\n" ..
-"Exploiter: " .. (lp:GetAttribute("Exploiter") == true and "YES ❌" or "No ✅") .. "\n" ..
-        
-									"\n```",
-    inline = true
-},
-							{
-								name = "Total Stats",
-								value =
-									"```\n" ..
-									"Prestige : " .. tostring(data.Total.Prestige or "0") .. "\n" ..
-									"Level : " .. tostring(data.Total.Level or "1") .. "\n" ..
-									"Gold  : " .. tostring(data.Total.Gold or "0") .. "\n" ..
-									"Gems  : " .. tostring(data.Total.Gems or "0") ..
-									"\n```",
-								inline = true
-							},
-							{
-								name = "Combat",
-								value = "```\n" .. formatTable(data.Stats) .. "\n```",
-								inline = true
-							},
-							{
-								name = "Rewards",
-								value = "```\n" .. formatItems(data.Items) .. "\n```",
-								inline = true
-							},
-							{
-								name = "Special",
-								value = "```\n" .. (hasSpecial and formatItems(data.Special) or "None") .. "\n```",
-								inline = true
-							}
+				content = hasSpecial and "MYTHICAL DROP! @everyone" or nil,
+				embeds = {{
+					title = "TH Rewards",
+					color = hasSpecial and 16711680 or 2829617,
+					fields = {
+						{
+							name = "Information",
+							value = "```\n" ..
+								"User: " .. lp.Name .. "\n" ..
+								"Games Played: " .. tostring(gamesPlayed) .. "\n" ..
+								"Executor: " .. executor .. "\n" ..
+								"Blacklisted: " .. (lp:GetAttribute("Blacklisted") == true and "YES ❌" or "No ✅") .. "\n" ..
+								"Exploiter: " .. (lp:GetAttribute("Exploiter") == true and "YES ❌" or "No ✅") .. "\n" ..
+								"\n```",
+							inline = true
 						},
-
-						footer = {
-							text = "TITANIC HUB • " .. DateTime.now():FormatLocalTime("LTS", "en-us")
+						{
+							name = "Total Stats",
+							value = "```\n" ..
+								"Prestige : " .. tostring(data.Total.Prestige or "0") .. "\n" ..
+								"Level : " .. tostring(data.Total.Level or "1") .. "\n" ..
+								"Gold  : " .. tostring(data.Total.Gold or "0") .. "\n" ..
+								"Gems  : " .. tostring(data.Total.Gems or "0") ..
+								"\n```",
+							inline = true
 						},
-
-						timestamp = DateTime.now():ToIsoDate()
-					}}
-				}
+						{
+							name = "Combat",
+							value = "```\n" .. formatTable(data.Stats) .. "\n```",
+							inline = true
+						},
+						{
+							name = "Rewards",
+							value = "```\n" .. formatItems(data.Items) .. "\n```",
+							inline = true
+						},
+						{
+							name = "Special",
+							value = "```\n" .. (hasSpecial and formatItems(data.Special) or "None") .. "\n```",
+							inline = true
+						}
+					},
+					footer = {
+						text = "TITANIC HUB • " .. DateTime.now():FormatLocalTime("LTS", "en-us")
+					},
+					timestamp = DateTime.now():ToIsoDate()
+				}}
+			}
 
 			request({
 				Url = webhook,
@@ -1096,6 +1121,44 @@ end
 		end
 	end)
 end
+
+-- Separate chest handler
+local chestsGui = INTERFACE:FindFirstChild("Chests")
+if chestsGui then
+	chestsGui:GetPropertyChangedSignal("Visible"):Connect(function()
+		if not chestsGui.Visible then return end
+		if not getgenv().AutoChest then return end
+		
+		task.wait(0.3)
+		
+		local free = chestsGui:FindFirstChild("Free")
+		local premium = chestsGui:FindFirstChild("Premium")
+		local finish = chestsGui:FindFirstChild("Finish")
+
+		if free and free.Visible then
+			UseButton(free)
+			task.wait(1)
+		end
+
+		if getgenv().OpenSecondChest and premium and premium.Visible then
+			local title = premium:FindFirstChild("Title")
+			if title and not string.find(title.Text, "(0)") then
+				UseButton(premium)
+				task.wait(1)
+			end
+		end
+
+		finish = chestsGui:FindFirstChild("Finish")
+		if finish and finish.Visible then
+			UseButton(finish)
+		end
+	end)
+end
+
+-- ==========================================
+-- PERKS & TALENTS DATA
+-- ==========================================
+
 local Perks = {
 	Legendary = {
 		"Peerless Commander","Indefatigable","Tyrant's Stare","Invincible","Eviscerate",
@@ -1212,7 +1275,6 @@ local Missions = {
 	["Colossal"] = { "Random" }
 }
 
--- Raid objective names (server-side exact strings from remote spy)
 local RaidObjectives = {
 	["Trost"]       = "Attack Titan",
 	["Shiganshina"] = "Armored Titan",
@@ -1220,7 +1282,6 @@ local RaidObjectives = {
 	["Colossal"]    = "Colossal Titan",
 }
 
--- Actual map name sent to server (Colossal uses Shiganshina map!)
 local RaidMapNames = {
 	["Trost"]       = "Trost",
 	["Shiganshina"] = "Shiganshina",
@@ -1245,25 +1306,17 @@ local function GetPerkXP(rarity, level)
 end
 
 local function UseButton(button)
-	if not button or not button.Parent then
-		return false
-	end
-
-	if not button.Visible then
-		return false
-	end
-
+	if not button or not button.Parent then return false end
+	if not button.Visible then return false end
 	if GuiService.MenuIsOpen then
 		vim:SendKeyEvent(true, Enum.KeyCode.Escape, false, game) 
 		vim:SendKeyEvent(false, Enum.KeyCode.Escape, false, game)
 		task.wait(0.1)
 	end
-
 	GuiService.SelectedObject = button
 	task.wait(0.05)
-	vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game) -- same here
+	vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
 	vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-
 	return true
 end
 
@@ -1274,11 +1327,7 @@ local function DeleteMap()
 		_deleteMapRunning = true
 		while getgenv().DeleteMap do
 			if not workspace:FindFirstChild("Climbable") or mapData.Map.Type == "Raids" then break end
-			
-			for i, v in workspace.Climbable:GetChildren() do
-				v:Destroy()
-			end
-
+			for i, v in workspace.Climbable:GetChildren() do v:Destroy() end
 			for i, v in workspace.Unclimbable:GetChildren() do
 				if v.Name ~= "Reloads" and v.Name ~= "Objective" and v.Name ~= "Cutscene" then
 					v:Destroy()
@@ -1290,12 +1339,15 @@ local function DeleteMap()
 	end)
 end
 
--- Auto execute: queue once when toggled on
 local function setupAutoExecute()
 	if getgenv().AutoExecute and not getgenv().AutoExec then
+		if not queue_on_teleport then
+			Library:Notify({ Title = "Auto Execute", Description = "Your executor doesn't support Auto Execute!", Time = 5 })
+			return
+		end
 		getgenv().AutoExec = true
 		queue_on_teleport([[
-		  repeat task.wait() until game:IsLoaded()
+			repeat task.wait() until game:IsLoaded()
 			task.wait(5)
 			getgenv().AutoExec = false
 			loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/upd.lua"))()
@@ -1307,95 +1359,45 @@ local function ExecuteImmediateAutomation()
 	if getgenv().AutoSkip then
 		local skip = INTERFACE:FindFirstChild("Skip")
 		if skip and skip.Visible then task.wait(1) end
-		
 		if skip and skip.Visible then
 			task.wait(1)
 			UseButton(skip:FindFirstChild("Interact"))
 		end
 	end
 
-	if getgenv().AutoChest then
-		local chests = INTERFACE:FindFirstChild("Chests")
-		if chests and chests.Visible then
-			local free = chests:FindFirstChild("Free")
-			local premium = chests:FindFirstChild("Premium")
-			local finish = chests:FindFirstChild("Finish")
-
-			if free and free.Visible then
-				UseButton(free)
-				task.wait(1.5)
-			elseif premium and premium.Visible and premium:FindFirstChild("Title") and not string.find(premium.Title.Text, "(0)") and getgenv().OpenSecondChest then
-				UseButton(premium)
-				task.wait(1.5)
-			elseif finish and finish.Visible then
-				UseButton(finish)
+	if getgenv().AutoRetry then
+		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
+		if rewardsGui and rewardsGui.Visible then
+			local retryBtn = rewardsGui:FindFirstChild("Main")
+				and rewardsGui.Main:FindFirstChild("Info")
+				and rewardsGui.Main.Info:FindFirstChild("Main")
+				and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
+				and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
+			
+			if not retryBtn or not retryBtn.Visible then
+				for _, btn in ipairs(rewardsGui:GetDescendants()) do
+					if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and btn.Active then
+						if btn.Name == "Retry" or (btn:IsA("TextButton") and btn.Text:find("Retry")) then
+							retryBtn = btn
+							break
+						end
+					end
+				end
+			end
+			
+			if retryBtn and retryBtn.Visible and retryBtn.Active then
+				task.wait(1)
+				local clicked = UseButton(retryBtn)
+				if not clicked then
+					GuiService.SelectedObject = retryBtn
+					task.wait(0.1)
+					vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+					vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+				end
 			end
 		end
 	end
-
-	 if getgenv().AutoRetry then
-        local rewardsGui = INTERFACE:FindFirstChild("Rewards")
-        if rewardsGui and rewardsGui.Visible then
-            -- Method 1: Direct button path
-            local retryBtn = rewardsGui:FindFirstChild("Main")
-                and rewardsGui.Main:FindFirstChild("Info")
-                and rewardsGui.Main.Info:FindFirstChild("Main")
-                and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
-                and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
-            
-            -- Method 2: Search all descendants for "Retry" button
-            if not retryBtn or not retryBtn.Visible then
-                for _, btn in ipairs(rewardsGui:GetDescendants()) do
-                    if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and btn.Active then
-                        if btn.Name == "Retry" or (btn:IsA("TextButton") and btn.Text:find("Retry")) then
-                            retryBtn = btn
-                            break
-                        end
-                    end
-                end
-            end
-            
-            -- Method 3: Click via VirtualInputManager directly
-            if retryBtn and retryBtn.Visible and retryBtn.Active then
-                -- Wait a bit for UI to fully load
-                task.wait(1)
-                
-                -- Try multiple click methods
-                local clicked = false
-                
-                -- Try 1: UseButton function
-                clicked = UseButton(retryBtn)
-                
-                -- Try 2: Direct VIM click
-                if not clicked then
-                    GuiService.SelectedObject = retryBtn
-                    task.wait(0.1)
-                    vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                    vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-                    clicked = true
-                end
-                
-                -- Try 3: Mouse click simulation
-                if not clicked then
-                    local pos = retryBtn.AbsolutePosition + retryBtn.AbsoluteSize / 2
-                    vim:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 0)
-                    task.wait(0.1)
-                    vim:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 0)
-                    clicked = true
-                end
-                
-                if clicked then
-                    print("Retry button clicked!")
-                end
-            else
-                -- Button not found or not active, force refresh
-                print("Retry button not ready, waiting...")
-                task.wait(0.5)
-            end
-        end
-    end
 end
-
 
 local function roll(targets, rarities)
 	if not PlayerGui.Interface.Customisation.Visible then return end
@@ -1411,32 +1413,39 @@ local function roll(targets, rarities)
 
 	if stopRolling then
 		getgenv().AutoRoll = false
-		-- Toggles reference set after UI loads; guard with pcall
 		pcall(function()
 			if Library and Library.Toggles and Library.Toggles.AutoRollToggle then
 				Library.Toggles.AutoRollToggle:SetValue(false)
 			end
 		end)
 
-		if familyRarity == "mythical" and getgenv().MythicalFamilyWebhook and webhook and webhook ~= "" then
+		if familyRarity == "mythical" and webhook and webhook ~= "" then
+			local rareMythicals = {"helos", "fritz", "reiss", "tybur"}
+			local isRareMythical = false
+			for _, name in ipairs(rareMythicals) do
+				if string.find(string.lower(familyString), name) then
+					isRareMythical = true
+					break
+				end
+			end
+
 			local payload = {
-				content = "MYTHICAL FAMILY ROLLED! @everyone",
+				content = isRareMythical and "🔥 RARE MYTHICAL! @everyone" or "✨ MYTHICAL FAMILY! @everyone",
 				embeds = {{
-					title = "Family Roll Success",
-					color = 16711680,
+					title = "Family Roll",
+					color = isRareMythical and 16711680 or 16750848,
 					fields = {
 						{
 							name = "Information",
 							value = "```\n" ..
-									"User: " .. lp.Name .. "\n" ..
-									"Family: " .. tostring(familyString) .. "\n" ..
-									"\n```",
+								"User: " .. lp.Name .. "\n" ..
+								"Family: " .. tostring(familyString) .. "\n" ..
+								"Rare Mythical: " .. (isRareMythical and "YES 🔥" or "No") .. "\n" ..
+								"\n```",
 							inline = true
 						}
 					},
-					footer = {
-						text = "TITANIC HUB • " .. DateTime.now():FormatLocalTime("LTS", "en-us")
-					},
+					footer = { text = "TITANIC HUB • " .. DateTime.now():FormatLocalTime("LTS", "en-us") },
 					timestamp = DateTime.now():ToIsoDate()
 				}}
 			}
@@ -1474,7 +1483,10 @@ local function roll(targets, rarities)
 	end
 end
 
--- Weapon reload system
+-- ==========================================
+-- WEAPON RELOAD
+-- ==========================================
+
 local lastReloadTime = 0
 local autoReloadEnabled = false
 local autoRefillEnabled = false
@@ -1502,7 +1514,6 @@ local function getRefillPart()
 	local unclimbable = workspace:FindFirstChild("Unclimbable")
 	if not unclimbable then return nil end
 
-	-- Path 1: Unclimbable.Reloads.GasTanks.Refill (some maps)
 	local reloads = unclimbable:FindFirstChild("Reloads")
 	if reloads then
 		local gasTanks = reloads:FindFirstChild("GasTanks")
@@ -1512,18 +1523,15 @@ local function getRefillPart()
 		end
 	end
 
-	-- Path 2: Unclimbable.Props.HQ.[anyChild].Refill (log confirmed: HQ:GetChildren()[342].Refill)
 	local props = unclimbable:FindFirstChild("Props")
 	if props then
 		local hq = props:FindFirstChild("HQ")
 		if hq then
-			-- Check GasTanks first (fast path)
 			local gasTank = hq:FindFirstChild("GasTanks")
 			if gasTank then
 				local refill = gasTank:FindFirstChild("Refill")
 				if refill then return refill end
 			end
-			-- Search ALL children of HQ (log shows it's at index 342, not always GasTanks)
 			for _, child in ipairs(hq:GetChildren()) do
 				local refill = child:FindFirstChild("Refill")
 				if refill then return refill end
@@ -1531,45 +1539,10 @@ local function getRefillPart()
 		end
 	end
 
-	-- Path 3: Deep search anywhere under Unclimbable (fallback)
 	return unclimbable:FindFirstChild("Refill", true)
 end
 
--- Wait for refill part to appear (it temporarily disappears and respawns)
-local function waitForRefillPart(timeout)
-	timeout = timeout or 8
-	local refill = getRefillPart()
-	if refill then return refill end
-
-	-- Use WaitForChild on HQ for faster detection when it respawns
-	local unclimbable = workspace:FindFirstChild("Unclimbable")
-	local hq = unclimbable and unclimbable:FindFirstChild("Props") and unclimbable.Props:FindFirstChild("HQ")
-	if hq then
-		-- Listen for any child added to HQ that has a Refill
-		local found = nil
-		local conn
-		conn = hq.ChildAdded:Connect(function(child)
-			local r = child:FindFirstChild("Refill")
-			if r then found = r end
-		end)
-		local t0 = os.clock()
-		repeat task.wait(0.2) until found or (os.clock() - t0 >= timeout)
-		conn:Disconnect()
-		if found then return found end
-	end
-
-	-- Final fallback: poll
-	local t0 = os.clock()
-	local r = getRefillPart()
-	while not r and (os.clock() - t0) < timeout do
-		task.wait(0.3)
-		r = getRefillPart()
-	end
-	return r
-end
-
 local function getWeaponType()
-	-- Detect from HUD frame visibility (fast, no server call)
 	local frame7 = getWeaponHUDFrame()
 	if not frame7 then return nil end
 	local bladesFrame = frame7:FindFirstChild("Blades")
@@ -1584,9 +1557,7 @@ local lastRefillTime = 0
 local cachedRefillPart = nil
 
 local function getCachedRefillPart()
-	if cachedRefillPart and cachedRefillPart.Parent then
-		return cachedRefillPart
-	end
+	if cachedRefillPart and cachedRefillPart.Parent then return cachedRefillPart end
 	cachedRefillPart = getRefillPart()
 	return cachedRefillPart
 end
@@ -1608,7 +1579,6 @@ local function handleWeaponReload()
 	if weaponType == "Blades" then
 		local current = getBladeCount() or 0
 
-		-- 0/3: refill from gas tank (no extra delay)
 		if current == 0 and autoRefillEnabled then
 			if os.clock() - lastRefillTime < 1.5 then return end
 			isReloading = true
@@ -1619,7 +1589,6 @@ local function handleWeaponReload()
 			return
 		end
 
-		-- blade transparent + reserves > 0: equip blade
 		local char = lp.Character
 		local rig = char and char:FindFirstChild("Rig_" .. lp.Name)
 		local blade = rig and rig:FindFirstChild("LeftHand") and rig.LeftHand:FindFirstChild("Blade_1")
@@ -1650,7 +1619,6 @@ local function handleWeaponReload()
 	end
 end
 
--- Unified high-frequency polling loop
 task.spawn(function()
 	while true do
 		pcall(handleWeaponReload)
@@ -1658,7 +1626,6 @@ task.spawn(function()
 	end
 end)
 
--- Auto Escape listener
 getgenv().AutoEscape = false
 postRemote.OnClientEvent:Connect(function(...)
 	local args = {...}
@@ -1681,10 +1648,8 @@ local Options = Library.Options
 local Toggles = Library.Toggles
 
 task.spawn(function()
-    task.wait(1)
-    pcall(function()
-        Library:SetFont(Enum.Font.Gotham)
-    end)
+	task.wait(1)
+	pcall(function() Library:SetFont(Enum.Font.Gotham) end)
 end)
 
 local Window = Library:CreateWindow({
@@ -1701,19 +1666,20 @@ local Tabs = {
 	Utility  = Window:AddTab("Utils",  "zap"),
 	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
 	Global   = Window:AddTab("Central",   "compass"),
+	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
 }
 
 -- Farm tab
-local MiscGroup     = Tabs.Farm:AddLeftGroupbox("Misc")
-local MainGroup     = Tabs.Farm:AddLeftGroupbox("Farm")
-local MovementGroup = Tabs.Farm:AddRightGroupbox("Movement")
+local MiscGroup      = Tabs.Farm:AddLeftGroupbox("Misc")
+local MainGroup      = Tabs.Farm:AddLeftGroupbox("Farm")
+local MovementGroup  = Tabs.Farm:AddRightGroupbox("Movement")
 local AutoStartGroup = Tabs.Farm:AddRightGroupbox("Auto Start")
 
 -- Utility tab
 local CombatGroup   = Tabs.Utility:AddLeftGroupbox("Combat Settings")
 local SecurityGroup = Tabs.Utility:AddLeftGroupbox("Security")
-local BoostGroup = Tabs.Utility:AddLeftGroupbox("Boosted Maps")  
+local BoostGroup    = Tabs.Utility:AddLeftGroupbox("Boosted Maps")
 local MasteryGroup  = Tabs.Utility:AddRightGroupbox("Mastery Farm")
 local FeaturesGroup = Tabs.Utility:AddRightGroupbox("Extras")
 
@@ -1727,8 +1693,13 @@ local SettingsGroup   = Tabs.Global:AddLeftGroupbox("Settings")
 local SlotGroup       = Tabs.Global:AddRightGroupbox("Slots")
 local WebhookGroup    = Tabs.Global:AddRightGroupbox("Webhook")
 
+-- Stats tab
+local SessionGroup = Tabs.Stats:AddLeftGroupbox("Session Stats")
+local RatesGroup   = Tabs.Stats:AddRightGroupbox("Rates")
+local CrashGroup   = Tabs.Stats:AddRightGroupbox("Auto Rejoin")
+
 -- ==========================================
--- FARM TAB : Misc Groupbox
+-- FARM TAB : Misc
 -- ==========================================
 
 MiscGroup:AddButton({
@@ -1740,31 +1711,29 @@ MiscGroup:AddButton({
 })
 
 MiscGroup:AddButton({
-    Text = "Check Shadow Ban",
-    Func = function()
-        if game.PlaceId ~= 14916516914 then
-            Library:Notify({ Title = "Error", Description = "Must be in lobby!", Time = 3 })
-            return
-        end
-        
-        local bl = lp:GetAttribute("Blacklisted") == true
-        local ex = lp:GetAttribute("Exploiter") == true
-        local lv = tostring(lp:GetAttribute("Level") or "N/A")
-        local pr = tostring(lp:GetAttribute("Prestige") or "N/A")
-        local flags = (bl and 1 or 0) + (ex and 1 or 0)
-        local res = flags == 0 and "✅ Clean" or (flags == 1 and "⚠️ Flagged" or "🚫 Banned")
-        
-        Library:Notify({
-            Title = "Shadow Ban Check",
-            Description = 
-                "Blacklisted: " .. (bl and "YES ❌" or "No ✅") ..
-                "\nExploiter: " .. (ex and "YES ❌" or "No ✅") ..
-                "\nLevel: " .. lv ..
-                "\nPrestige: " .. pr ..
-                "\n\nStatus: " .. res,
-            Time = 8
-        })
-    end,
+	Text = "Check Shadow Ban",
+	Func = function()
+		if game.PlaceId ~= 14916516914 then
+			Library:Notify({ Title = "Error", Description = "Must be in lobby!", Time = 3 })
+			return
+		end
+		local bl = lp:GetAttribute("Blacklisted") == true
+		local ex = lp:GetAttribute("Exploiter") == true
+		local lv = tostring(lp:GetAttribute("Level") or "N/A")
+		local pr = tostring(lp:GetAttribute("Prestige") or "N/A")
+		local flags = (bl and 1 or 0) + (ex and 1 or 0)
+		local res = flags == 0 and "✅ Clean" or (flags == 1 and "⚠️ Flagged" or "🚫 Banned")
+		Library:Notify({
+			Title = "Shadow Ban Check",
+			Description = 
+				"Blacklisted: " .. (bl and "YES ❌" or "No ✅") ..
+				"\nExploiter: " .. (ex and "YES ❌" or "No ✅") ..
+				"\nLevel: " .. lv ..
+				"\nPrestige: " .. pr ..
+				"\n\nStatus: " .. res,
+			Time = 8
+		})
+	end,
 })
 
 MiscGroup:AddButton({
@@ -1776,8 +1745,9 @@ MiscGroup:AddButton({
 })
 
 -- ==========================================
--- FARM TAB : Automation Groupbox
+-- FARM TAB : Farm
 -- ==========================================
+
 getgenv().CurrentStatusLabel = MainGroup:AddLabel("Status: Idle")
 
 MainGroup:AddToggle("AutoKillToggle", {
@@ -1807,30 +1777,48 @@ Options.LastTitanWaitSlider:OnChanged(function()
 	getgenv().LastTitanWaitSecs = Options.LastTitanWaitSlider.Value
 end)
 
-MasteryGroup:AddToggle("MasteryFarmToggle", {
-	Text = "Titan Mastery Farm",
+MainGroup:AddToggle("AutoRetryToggle", {
+	Text = "Auto Retry",
 	Default = false,
 })
-Toggles.MasteryFarmToggle:OnChanged(function()
-	getgenv().MasteryFarmConfig.Enabled = Toggles.MasteryFarmToggle.Value
-	if Toggles.MasteryFarmToggle.Value then
-		if not Toggles.AutoKillToggle.Value then
-			Toggles.AutoKillToggle:SetValue(true)
-		elseif not AutoFarm._running then
-			AutoFarm:Start()
-		end
+Toggles.AutoRetryToggle:OnChanged(function()
+	getgenv().AutoRetry = Toggles.AutoRetryToggle.Value
+	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
+end)
+
+MainGroup:AddToggle("SoloOnlyToggle", {
+	Text = "Solo Only",
+	Default = false,
+})
+Toggles.SoloOnlyToggle:OnChanged(function()
+	getgenv().SoloOnly = Toggles.SoloOnlyToggle.Value
+end)
+
+MainGroup:AddToggle("AutoReturnLobbyToggle", {
+	Text = "Auto Return to Lobby",
+	Default = false,
+})
+Toggles.AutoReturnLobbyToggle:OnChanged(function()
+	getgenv().AutoReturnLobby = Toggles.AutoReturnLobbyToggle.Value
+	if not getgenv().AutoReturnLobby then
+		pcall(function() writefile(returnCounterPath, "0") end)
 	end
 end)
 
-MasteryGroup:AddDropdown("MasteryModeDropdown", {
-	Values = {"Punching", "Skill Usage", "Both"},
-	Default = 3,
-	Multi = false,
-	Text = "Mastery Mode",
+MainGroup:AddSlider("ReturnAfterGamesSlider", {
+	Text = "Return to lobby after x games",
+	Default = 10,
+	Min = 1,
+	Max = 250,
+	Rounding = 0,
 })
-Options.MasteryModeDropdown:OnChanged(function()
-	getgenv().MasteryFarmConfig.Mode = Options.MasteryModeDropdown.Value
+Options.ReturnAfterGamesSlider:OnChanged(function()
+	getgenv().ReturnAfterGames = Options.ReturnAfterGamesSlider.Value
 end)
+
+-- ==========================================
+-- FARM TAB : Movement
+-- ==========================================
 
 MovementGroup:AddDropdown("MovementModeDropdown", {
 	Values = {"Hover", "Teleport"},
@@ -1841,163 +1829,6 @@ MovementGroup:AddDropdown("MovementModeDropdown", {
 Options.MovementModeDropdown:OnChanged(function()
 	getgenv().AutoFarmConfig.MovementMode = Options.MovementModeDropdown.Value
 end)
-
-SecurityGroup:AddDropdown("FarmOptionsDropdown", {
-	Values = {"Auto Execute", "Failsafe", "Open Second Chest"},
-	Default = {},
-	Multi = true,
-	Text = "Farm Options",
-})
-Options.FarmOptionsDropdown:OnChanged(function()
-	local vals = Options.FarmOptionsDropdown.Value
-	getgenv().AutoFailsafe = vals["Failsafe"] or false
-	getgenv().AutoExecute = vals["Auto Execute"] or false
-	getgenv().OpenSecondChest = vals["Open Second Chest"] or false
-	if getgenv().AutoExecute then setupAutoExecute() end
-end)
--- ==========================================
--- UTILITY TAB : Boosted Maps Groupbox
--- ==========================================
-
-BoostGroup:AddToggle("AutoJoinBoostedMapToggle", {
-    Text = "Auto Join Boosted Map",
-    Default = false,
-})
-Toggles.AutoJoinBoostedMapToggle:OnChanged(function()
-    getgenv().AutoJoinBoostedMap = Toggles.AutoJoinBoostedMapToggle.Value
-    
-    if getgenv().AutoJoinBoostedMap then
-        task.spawn(function()
-            local lastBoostedMap = nil
-            
-            while getgenv().AutoJoinBoostedMap do
-                if game.PlaceId ~= 14916516914 then
-                    -- Mission mein hai - check if boost changed
-                    local currentBoostedMap = workspace:GetAttribute("Boosted_Map")
-                    
-                    if currentBoostedMap and currentBoostedMap ~= lastBoostedMap then
-                        Library:Notify({
-                            Title = "🔄 Boost Changed!",
-                            Description = "New boost: " .. currentBoostedMap .. "\nReturning to lobby...",
-                            Time = 5
-                        })
-                        
-                        if AutoFarm and AutoFarm._running then AutoFarm:Stop() end
-                        
-                        pcall(function()
-                            getRemote:InvokeServer("Functions", "Teleport", "Lobby")
-                        end)
-                        task.wait(0.5)
-                        pcall(function() TeleportService:Teleport(14916516914, lp) end)
-                        
-                        lastBoostedMap = nil
-                        task.wait(5)
-                        continue
-                    end
-                    
-                    task.wait(10)
-                    continue
-                end
-                
-                -- Lobby mein hai
-                local boostedMap = workspace:GetAttribute("Boosted_Map")
-                local boostedTimer = workspace:GetAttribute("Boosted_Timer")
-                
-                if boostedMap and boostedMap ~= "" and boostedMap ~= lastBoostedMap then
-                    lastBoostedMap = boostedMap
-                    
-                    Library:Notify({
-                        Title = "🎯 Boost Found!",
-                        Description = "Map: " .. boostedMap .. " | Time: " .. tostring(boostedTimer or "N/A") .. "s",
-                        Time = 5
-                    })
-                    
-                    -- Leave existing
-                    pcall(function()
-                        for _, m in next, ReplicatedStorage.Missions:GetChildren() do
-                            if m:FindFirstChild("Leader") and m.Leader.Value == lp.Name then
-                                getRemote:InvokeServer("S_Missions", "Leave")
-                            end
-                        end
-                    end)
-                    task.wait(1)
-                    
-                    -- Create mission
-                    local created = false
-                    for _, diff in ipairs({"Aberrant", "Severe", "Hard", "Normal"}) do
-                        if created then break end
-                        pcall(function()
-                            getRemote:InvokeServer("S_Missions", "Create", {
-                                Difficulty = diff, Type = "Missions",
-                                Name = boostedMap, Objective = "Skirmish"
-                            })
-                        end)
-                        task.wait(0.5)
-                        for _, m in next, ReplicatedStorage.Missions:GetChildren() do
-                            if m:FindFirstChild("Leader") and m.Leader.Value == lp.Name then
-                                created = true; break
-                            end
-                        end
-                    end
-                    
-                    if created then
-                        task.wait(0.5)
-                        
-                        -- Modifiers
-                        if getgenv().AutoModifiers then
-                            for _, mod in ipairs({"No Perks","No Skills","No Memories","Nightmare","Oddball","Injury Prone","Chronic Injuries","Fog","Glass Cannon","Time Trial"}) do
-                                pcall(function() getRemote:InvokeServer("S_Missions", "Modify", mod) end)
-                                task.wait(0.05)
-                            end
-                        end
-                        
-                        pcall(function() getRemote:InvokeServer("S_Missions", "Start") end)
-                        
-                        Library:Notify({
-                            Title = "✅ Farming Boosted Map!",
-                            Description = "Map: " .. boostedMap,
-                            Time = 3
-                        })
-                    end
-                else
-                    task.wait(5)
-                end
-            end
-        end)
-    end
-end)
-
-BoostGroup:AddToggle("AutoModifiersToggle", {
-    Text = "Auto Enable All Modifiers",
-    Default = false,
-})
-Toggles.AutoModifiersToggle:OnChanged(function()
-    getgenv().AutoModifiers = Toggles.AutoModifiersToggle.Value
-end)
-
-BoostGroup:AddButton({
-    Text = "Check Boosted Map",
-    Func = function()
-        local boostedMap = workspace:GetAttribute("Boosted_Map")
-        local boostedTimer = workspace:GetAttribute("Boosted_Timer")
-        
-        if boostedMap and boostedMap ~= "" then
-            Library:Notify({
-                Title = "🎯 Current Boost",
-                Description = "Map: " .. boostedMap .. "\nTime Left: " .. tostring(boostedTimer or "N/A") .. "s",
-                Time = 8
-            })
-        else
-            Library:Notify({
-                Title = "No Boost",
-                Description = "No boosted map active!",
-                Time = 5
-            })
-        end
-    end,
-})
-
-BoostGroup:AddLabel("Auto joins boosted map with\nall modifiers for max rewards!")
 
 MovementGroup:AddSlider("HoverSpeedSlider", {
 	Text = "Hover Speed",
@@ -2010,9 +1841,7 @@ Options.HoverSpeedSlider:OnChanged(function()
 	getgenv().AutoFarmConfig.MoveSpeed = Options.HoverSpeedSlider.Value
 end)
 
-
 MovementGroup:AddSlider("FloatHeightSlider", {
-
 	Text = "Float Height",
 	Default = 250,
 	Min = 100,
@@ -2031,6 +1860,9 @@ Toggles.NoclipToggle:OnChanged(function()
 	setNoclip(Toggles.NoclipToggle.Value)
 end)
 
+-- ==========================================
+-- UTILITY TAB : Combat
+-- ==========================================
 
 CombatGroup:AddToggle("AutoReloadToggle", {
 	Text = "Auto Reload/Refill",
@@ -2040,37 +1872,23 @@ Toggles.AutoReloadToggle:OnChanged(function()
 	autoReloadEnabled = Toggles.AutoReloadToggle.Value
 	autoRefillEnabled = Toggles.AutoReloadToggle.Value
 end)
+
 CombatGroup:AddButton({
-    Text = "TP to Refill",
-    Func = function()
-        local refillPart = getRefillPart()
-        if not refillPart then
-            Library:Notify({
-                Title = "TITANIC HUB",
-                Description = "Refill station not found on this map!",
-                Time = 3
-            })
-            return
-        end
-        
-        local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-        if not root then
-            Library:Notify({
-                Title = "TITANIC HUB",
-                Description = "Character not loaded yet!",
-                Time = 3
-            })
-            return
-        end
-        
-        root.CFrame = refillPart.CFrame * CFrame.new(0, 5, 10)
-        
-        Library:Notify({
-            Title = "TITANIC HUB",
-            Description = "Teleported to refill station!",
-            Time = 2
-        })
-    end,
+	Text = "TP to Refill",
+	Func = function()
+		local refillPart = getRefillPart()
+		if not refillPart then
+			Library:Notify({ Title = "TITANIC HUB", Description = "Refill station not found!", Time = 3 })
+			return
+		end
+		local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+		if not root then
+			Library:Notify({ Title = "TITANIC HUB", Description = "Character not loaded yet!", Time = 3 })
+			return
+		end
+		root.CFrame = refillPart.CFrame * CFrame.new(0, 5, 10)
+		Library:Notify({ Title = "TITANIC HUB", Description = "Teleported to refill station!", Time = 2 })
+	end,
 })
 
 CombatGroup:AddToggle("AutoEscapeToggle", {
@@ -2102,6 +1920,164 @@ Options.MultiHitCountSlider:OnChanged(function()
 	getgenv().MultiHitCount = Options.MultiHitCountSlider.Value
 end)
 
+-- ==========================================
+-- UTILITY TAB : Security
+-- ==========================================
+
+SecurityGroup:AddDropdown("FarmOptionsDropdown", {
+	Values = {"Auto Execute", "Failsafe", "Open Second Chest"},
+	Default = {},
+	Multi = true,
+	Text = "Farm Options",
+})
+Options.FarmOptionsDropdown:OnChanged(function()
+	local vals = Options.FarmOptionsDropdown.Value
+	getgenv().AutoFailsafe = vals["Failsafe"] or false
+	getgenv().AutoExecute = vals["Auto Execute"] or false
+	getgenv().OpenSecondChest = vals["Open Second Chest"] or false
+	if getgenv().AutoExecute then setupAutoExecute() end
+end)
+
+SecurityGroup:AddLabel("Failsafe tps you back to lobby\nafter a timeout.")
+
+-- ==========================================
+-- UTILITY TAB : Boosted Maps
+-- ==========================================
+
+BoostGroup:AddToggle("AutoJoinBoostedMapToggle", {
+	Text = "Auto Join Boosted Map",
+	Default = false,
+})
+Toggles.AutoJoinBoostedMapToggle:OnChanged(function()
+	getgenv().AutoJoinBoostedMap = Toggles.AutoJoinBoostedMapToggle.Value
+	if getgenv().AutoJoinBoostedMap then
+		task.spawn(function()
+			local lastBoostedMap = nil
+			while getgenv().AutoJoinBoostedMap do
+				if game.PlaceId ~= 14916516914 then
+					local currentBoostedMap = workspace:GetAttribute("Boosted_Map")
+					if currentBoostedMap and currentBoostedMap ~= lastBoostedMap then
+						Library:Notify({ Title = "🔄 Boost Changed!", Description = "New boost: " .. currentBoostedMap .. "\nReturning to lobby...", Time = 5 })
+						if AutoFarm and AutoFarm._running then AutoFarm:Stop() end
+						pcall(function() getRemote:InvokeServer("Functions", "Teleport", "Lobby") end)
+						task.wait(0.5)
+						pcall(function() TeleportService:Teleport(14916516914, lp) end)
+						lastBoostedMap = nil
+						task.wait(5)
+						continue
+					end
+					task.wait(10)
+					continue
+				end
+
+				local boostedMap = workspace:GetAttribute("Boosted_Map")
+				local boostedTimer = workspace:GetAttribute("Boosted_Timer")
+				
+				if boostedMap and boostedMap ~= "" and boostedMap ~= lastBoostedMap then
+					lastBoostedMap = boostedMap
+					Library:Notify({ Title = "🎯 Boost Found!", Description = "Map: " .. boostedMap .. " | Time: " .. tostring(boostedTimer or "N/A") .. "s", Time = 5 })
+					
+					pcall(function()
+						for _, m in next, ReplicatedStorage.Missions:GetChildren() do
+							if m:FindFirstChild("Leader") and m.Leader.Value == lp.Name then
+								getRemote:InvokeServer("S_Missions", "Leave")
+							end
+						end
+					end)
+					task.wait(1)
+					
+					local created = false
+					for _, diff in ipairs({"Aberrant", "Severe", "Hard", "Normal"}) do
+						if created then break end
+						pcall(function()
+							getRemote:InvokeServer("S_Missions", "Create", {
+								Difficulty = diff, Type = "Missions",
+								Name = boostedMap, Objective = "Skirmish"
+							})
+						end)
+						task.wait(0.5)
+						for _, m in next, ReplicatedStorage.Missions:GetChildren() do
+							if m:FindFirstChild("Leader") and m.Leader.Value == lp.Name then
+								created = true; break
+							end
+						end
+					end
+					
+					if created then
+						task.wait(0.5)
+						if getgenv().AutoModifiers then
+							for _, mod in ipairs({"No Perks","No Skills","No Memories","Nightmare","Oddball","Injury Prone","Chronic Injuries","Fog","Glass Cannon","Time Trial"}) do
+								pcall(function() getRemote:InvokeServer("S_Missions", "Modify", mod) end)
+								task.wait(0.05)
+							end
+						end
+						pcall(function() getRemote:InvokeServer("S_Missions", "Start") end)
+						Library:Notify({ Title = "✅ Farming Boosted Map!", Description = "Map: " .. boostedMap, Time = 3 })
+					end
+				else
+					task.wait(5)
+				end
+			end
+		end)
+	end
+end)
+
+BoostGroup:AddToggle("AutoModifiersToggle", {
+	Text = "Auto Enable All Modifiers",
+	Default = false,
+})
+Toggles.AutoModifiersToggle:OnChanged(function()
+	getgenv().AutoModifiers = Toggles.AutoModifiersToggle.Value
+end)
+
+BoostGroup:AddButton({
+	Text = "Check Boosted Map",
+	Func = function()
+		local boostedMap = workspace:GetAttribute("Boosted_Map")
+		local boostedTimer = workspace:GetAttribute("Boosted_Timer")
+		if boostedMap and boostedMap ~= "" then
+			Library:Notify({ Title = "🎯 Current Boost", Description = "Map: " .. boostedMap .. "\nTime Left: " .. tostring(boostedTimer or "N/A") .. "s", Time = 8 })
+		else
+			Library:Notify({ Title = "No Boost", Description = "No boosted map active!", Time = 5 })
+		end
+	end,
+})
+
+BoostGroup:AddLabel("Auto joins boosted map with\nall modifiers for max rewards!")
+
+-- ==========================================
+-- UTILITY TAB : Mastery Farm
+-- ==========================================
+
+MasteryGroup:AddToggle("MasteryFarmToggle", {
+	Text = "Titan Mastery Farm",
+	Default = false,
+})
+Toggles.MasteryFarmToggle:OnChanged(function()
+	getgenv().MasteryFarmConfig.Enabled = Toggles.MasteryFarmToggle.Value
+	if Toggles.MasteryFarmToggle.Value then
+		if not Toggles.AutoKillToggle.Value then
+			Toggles.AutoKillToggle:SetValue(true)
+		elseif not AutoFarm._running then
+			AutoFarm:Start()
+		end
+	end
+end)
+
+MasteryGroup:AddDropdown("MasteryModeDropdown", {
+	Values = {"Punching", "Skill Usage", "Both"},
+	Default = 3,
+	Multi = false,
+	Text = "Mastery Mode",
+})
+Options.MasteryModeDropdown:OnChanged(function()
+	getgenv().MasteryFarmConfig.Mode = Options.MasteryModeDropdown.Value
+end)
+
+-- ==========================================
+-- UTILITY TAB : Extras
+-- ==========================================
+
 FeaturesGroup:AddToggle("AutoSkipToggle", {
 	Text = "Auto Skip Cutscenes",
 	Default = false,
@@ -2109,15 +2085,6 @@ FeaturesGroup:AddToggle("AutoSkipToggle", {
 Toggles.AutoSkipToggle:OnChanged(function()
 	getgenv().AutoSkip = Toggles.AutoSkipToggle.Value
 	if getgenv().AutoSkip then ExecuteImmediateAutomation() end
-end)
-
-MainGroup:AddToggle("AutoRetryToggle", {
-	Text = "Auto Retry",
-	Default = false,
-})
-Toggles.AutoRetryToggle:OnChanged(function()
-	getgenv().AutoRetry = Toggles.AutoRetryToggle.Value
-	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
 end)
 
 FeaturesGroup:AddToggle("DieAtStreakToggle", {
@@ -2139,14 +2106,12 @@ Options.DieAtStreakSlider:OnChanged(function()
 	getgenv().DieAtStreakCount = Options.DieAtStreakSlider.Value
 end)
 
-
 FeaturesGroup:AddToggle("AutoChestToggle", {
 	Text = "Auto Open Chests",
 	Default = false,
 })
 Toggles.AutoChestToggle:OnChanged(function()
 	getgenv().AutoChest = Toggles.AutoChestToggle.Value
-	if getgenv().AutoChest then ExecuteImmediateAutomation() end
 end)
 
 FeaturesGroup:AddToggle("DeleteMapToggle", {
@@ -2159,44 +2124,9 @@ Toggles.DeleteMapToggle:OnChanged(function()
 	SaveConfig(DropdownConfig)
 	if getgenv().DeleteMap then DeleteMap() end
 end)
-MainGroup:AddToggle("SoloOnlyToggle", {
-	Text = "Solo Only",
-	Default = false,
-})
-Toggles.SoloOnlyToggle:OnChanged(function()
-	getgenv().SoloOnly = Toggles.SoloOnlyToggle.Value
-end)
-
-MainGroup:AddToggle("AutoReturnLobbyToggle", {
-	Text = "Auto Return to Lobby",
-	Default = false,
-})
-Toggles.AutoReturnLobbyToggle:OnChanged(function()
-	getgenv().AutoReturnLobby = Toggles.AutoReturnLobbyToggle.Value
-	if not getgenv().AutoReturnLobby then
-		pcall(function() writefile(returnCounterPath, "0") end)
-	end
-end)
-
-MainGroup:AddSlider("ReturnAfterGamesSlider", {
-	Text = "Return to lobby after x games",
-	Default = 10,
-	Min = 1,
-	Max = 250,
-	Rounding = 0,
-})
-Options.ReturnAfterGamesSlider:OnChanged(function()
-	getgenv().ReturnAfterGames = Options.ReturnAfterGamesSlider.Value
-end)
-
-SecurityGroup:AddLabel("Failsafe tps you back to lobby\nafter a timeout.")
 
 -- ==========================================
--- MAIN TAB : Auto Start Groupbox
--- ==========================================
-
--- ==========================================
--- FARM TAB : Auto Start Groupbox
+-- FARM TAB : Auto Start
 -- ==========================================
 
 AutoStartGroup:AddToggle("AutoStartToggle", {
@@ -2213,7 +2143,7 @@ Toggles.AutoStartToggle:OnChanged(function()
 
 			local function getMyMission()
 				local start = os.clock()
-				while (os.clock() - start) < 2 do -- 2 second timeout for replication
+				while (os.clock() - start) < 2 do
 					for _, mission in next, ReplicatedStorage.Missions:GetChildren() do
 						if mission:FindFirstChild("Leader") and mission.Leader.Value == lp.Name then
 							return mission
@@ -2243,9 +2173,7 @@ Toggles.AutoStartToggle:OnChanged(function()
 				else
 					selectedDifficulty = Options.RaidDifficultyDropdown.Value
 					mapName = Options.RaidMapDropdown.Value
-					-- Use exact server-side objective name for raids
 					objective = RaidObjectives[mapName] or Options.RaidObjectiveDropdown.Value
-					-- Colossal uses Shiganshina map server-side
 					mapName = RaidMapNames[mapName] or mapName
 				end
 
@@ -2258,20 +2186,14 @@ Toggles.AutoStartToggle:OnChanged(function()
 
 					for _, diff in ipairs(diffOrder) do
 						if not getgenv().AutoStart then break end
-
 						getRemote:InvokeServer("S_Missions", "Create", {
 							Difficulty = diff,
 							Type = missionType,
 							Name = mapName,
 							Objective = objective
 						})
-
 						if getMyMission() then
-							Library:Notify({
-								Title = "Auto Start",
-								Description = "Selected difficulty: " .. diff,
-								Time = 3
-							})
+							Library:Notify({ Title = "Auto Start", Description = "Selected difficulty: " .. diff, Time = 3 })
 							created = true
 							break
 						end
@@ -2283,7 +2205,6 @@ Toggles.AutoStartToggle:OnChanged(function()
 						Name = mapName,
 						Objective = objective
 					})
-
 					if getMyMission() then created = true end
 				end
 
@@ -2292,23 +2213,13 @@ Toggles.AutoStartToggle:OnChanged(function()
 				if not created then
 					retries = retries + 1
 					local backoff = math.min(retries * 2, 20)
-
 					if retries >= MAX_RETRIES then
-						Library:Notify({
-							Title = "Auto Start",
-							Description = "Failed after " .. MAX_RETRIES .. " retries. Stopping.",
-							Time = 10
-						})
+						Library:Notify({ Title = "Auto Start", Description = "Failed after " .. MAX_RETRIES .. " retries. Stopping.", Time = 10 })
 						getgenv().AutoStart = false
 						Toggles.AutoStartToggle:SetValue(false)
 						break
 					end
-
-					Library:Notify({
-						Title = "Auto Start",
-						Description = "Failed to create. Retry " .. retries .. "/" .. MAX_RETRIES .. " in " .. backoff .. "s",
-						Time = backoff
-					})
+					Library:Notify({ Title = "Auto Start", Description = "Failed to create. Retry " .. retries .. "/" .. MAX_RETRIES .. " in " .. backoff .. "s", Time = backoff })
 					task.wait(backoff)
 					continue
 				end
@@ -2331,16 +2242,11 @@ Toggles.AutoStartToggle:OnChanged(function()
 				task.wait(0.5)
 
 				if getgenv().WaitBeforeStart and getgenv().WaitBeforeStartSecs > 0 then
-					Library:Notify({
-						Title = "Auto Start",
-						Description = "Waiting " .. getgenv().WaitBeforeStartSecs .. "s before starting...",
-						Time = getgenv().WaitBeforeStartSecs
-					})
+					Library:Notify({ Title = "Auto Start", Description = "Waiting " .. getgenv().WaitBeforeStartSecs .. "s before starting...", Time = getgenv().WaitBeforeStartSecs })
 					task.wait(getgenv().WaitBeforeStartSecs)
 				end
 
 				getRemote:InvokeServer("S_Missions", "Start")
-
 				task.wait(5)
 			end
 		end)
@@ -2366,7 +2272,8 @@ Options.WaitBeforeStartSlider:OnChanged(function()
 	getgenv().WaitBeforeStartSecs = Options.WaitBeforeStartSlider.Value
 end)
 
-AutoStartGroup:AddDropdown("StartTypeDropdown", {	Values = {"Missions", "Raids"},
+AutoStartGroup:AddDropdown("StartTypeDropdown", {
+	Values = {"Missions", "Raids"},
 	Default = DropdownConfig._lastType and table.find({"Missions", "Raids"}, DropdownConfig._lastType) or 1,
 	Multi = false,
 	Text = "Type",
@@ -2374,15 +2281,12 @@ AutoStartGroup:AddDropdown("StartTypeDropdown", {	Values = {"Missions", "Raids"}
 Options.StartTypeDropdown:OnChanged(function()
 	local Value = Options.StartTypeDropdown.Value
 	if not Value then return end
-	
 	DropdownConfig._lastType = Value
 	SaveConfig(DropdownConfig)
-
 	local isMission = Value == "Missions"
 	Options.MissionMapDropdown:SetVisible(isMission)
 	Options.MissionObjectiveDropdown:SetVisible(isMission)
 	Options.MissionDifficultyDropdown:SetVisible(isMission)
-
 	Options.RaidMapDropdown:SetVisible(not isMission)
 	Options.RaidObjectiveDropdown:SetVisible(not isMission)
 	Options.RaidDifficultyDropdown:SetVisible(not isMission)
@@ -2496,6 +2400,7 @@ AutoStartGroup:AddDropdown("ModifiersDropdown", {
 	Multi = true,
 	Text = "Modifiers",
 })
+
 AutoStartGroup:AddToggle("AllModifiersToggle", {
 	Text = "Enable All Modifiers (Max Rewards)",
 	Default = false,
@@ -2503,32 +2408,17 @@ AutoStartGroup:AddToggle("AllModifiersToggle", {
 Toggles.AllModifiersToggle:OnChanged(function()
 	if Toggles.AllModifiersToggle.Value then
 		Options.ModifiersDropdown:SetValue({
-			["No Perks"]          = true,
-			["No Skills"]         = true,
-			["No Memories"]       = true,
-			["Nightmare"]         = true,
-			["Oddball"]           = true,
-			["Injury Prone"]      = true,
-			["Chronic Injuries"]  = true,
-			["Fog"]               = true,
-			["Glass Cannon"]      = true,
+			["No Perks"] = true, ["No Skills"] = true, ["No Memories"] = true,
+			["Nightmare"] = true, ["Oddball"] = true, ["Injury Prone"] = true,
+			["Chronic Injuries"] = true, ["Fog"] = true, ["Glass Cannon"] = true,
 		})
-		Library:Notify({
-			Title = "Auto Start",
-			Description = "All 9 modifiers enabled!",
-			Time = 3
-		})
+		Library:Notify({ Title = "Auto Start", Description = "All 9 modifiers enabled!", Time = 3 })
 	else
 		Options.ModifiersDropdown:SetValue({})
-		Library:Notify({
-			Title = "Auto Start",
-			Description = "Modifiers cleared!",
-			Time = 3
-		})
+		Library:Notify({ Title = "Auto Start", Description = "Modifiers cleared!", Time = 3 })
 	end
 end)
 
--- Trigger type initialization
 task.defer(function()
 	task.wait(0.2)
 	local savedType = DropdownConfig._lastType or "Missions"
@@ -2536,8 +2426,9 @@ task.defer(function()
 end)
 
 -- ==========================================
--- UPGRADES TAB : Upgrades Groupbox
+-- UPGRADES TAB
 -- ==========================================
+
 UpgradesGroup:AddToggle("AutoUpgradeToggle", {
 	Text = "Upgrade Gear",
 	Default = false,
@@ -2558,17 +2449,14 @@ Toggles.AutoUpgradeToggle:OnChanged(function()
 				Toggles.AutoUpgradeToggle:SetValue(false)
 				break
 			end
-			-- Use same data fetch as rest of script
-			local ok, liveData = pcall(function()
-				return getRemote:InvokeServer("Data", "Copy")
-			end)
+			local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
 			if not ok or not liveData or type(liveData) ~= "table" then task.wait(2) continue end
 
 			local slotIndex = liveData.Current_Slot
-local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
-if not slotData then task.wait(2) continue end
+			local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
+			if not slotData then task.wait(2) continue end
 
-			local weapon = slotData.Weapon -- "Blades" or "Spears"
+			local weapon = slotData.Weapon
 			local upgrades = slotData.Upgrades and slotData.Upgrades[weapon]
 			if not upgrades then task.wait(2) continue end
 
@@ -2580,26 +2468,17 @@ if not slotData then task.wait(2) continue end
 				end)
 				if success and result then
 					anyDone = true
-					Library:Notify({
-						Title = "Upgraded!",
-						Description = string.gsub(upg, "_", " ") .. " Lv " .. tostring(lvl + 1),
-						Time = 1.5
-					})
+					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " ") .. " Lv " .. tostring(lvl + 1), Time = 1.5 })
 					task.wait(0.5)
 				end
 			end
 
 			if not anyDone then
-				Library:Notify({
-					Title = "Auto Upgrade",
-					Description = weapon .. " fully maxed on slot " .. tostring(slotIndex),
-					Time = 3
-				})
+				Library:Notify({ Title = "Auto Upgrade", Description = weapon .. " fully maxed on slot " .. tostring(slotIndex), Time = 3 })
 				getgenv().AutoUpgrade = false
 				Toggles.AutoUpgradeToggle:SetValue(false)
 				break
 			end
-
 			task.wait(1)
 		end
 	end)
@@ -2682,9 +2561,7 @@ Toggles.AutoEnhanceToggle:OnChanged(function()
 
 				if getRemote:InvokeServer("S_Equipment", "Enhance", equippedPerkId, validPerks) then
 					for _, id in ipairs(validPerks) do storagePerks[id] = nil end
-
 					currentXP = currentXP + totalXPGain
-
 					while currentLevel < 10 do
 						local thresholds = Perk_Level_XP[rarity]
 						if not thresholds then break end
@@ -2693,16 +2570,10 @@ Toggles.AutoEnhanceToggle:OnChanged(function()
 						currentXP = currentXP - needed
 						currentLevel = currentLevel + 1
 					end
-
-					Library:Notify({
-						Title = "Enhanced: " .. perkName,
-						Description = "Level " .. tostring(currentLevel) .. " (+" .. totalXPGain .. " XP)",
-						Time = 1
-					})
+					Library:Notify({ Title = "Enhanced: " .. perkName, Description = "Level " .. tostring(currentLevel) .. " (+" .. totalXPGain .. " XP)", Time = 1 })
 				else
 					continue
 				end
-
 				task.wait(0.5)
 			end
 
@@ -2728,9 +2599,8 @@ UpgradesGroup:AddDropdown("SelectPerksDropdown", {
 
 UpgradesGroup:AddLabel("Default perk slot is Body")
 
-
 -- ==========================================
--- UPGRADES TAB : Skill Tree Groupbox
+-- UPGRADES TAB : Skill Tree
 -- ==========================================
 
 SkillTreeGroup:AddToggle("AutoSkillTree", {
@@ -2744,10 +2614,7 @@ Toggles.AutoSkillTree:OnChanged(function()
 
 	task.spawn(function()
 		while getgenv().AutoSkillTree do
-			-- Fetch fresh data every iteration so Skills.Unlocked stays current
-			local ok, liveData = pcall(function()
-				return getRemote:InvokeServer("Data", "Copy")
-			end)
+			local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
 			if not ok or not liveData or type(liveData) ~= "table" then task.wait(2) continue end
 
 			local slotIndex = liveData.Current_Slot
@@ -2755,7 +2622,6 @@ Toggles.AutoSkillTree:OnChanged(function()
 			if not slotData then task.wait(2) continue end
 
 			local weapon = slotData.Weapon
-
 			local middle = Options.MiddlePathDropdown.Value
 			local left   = Options.LeftPathDropdown.Value
 			local right  = Options.RightPathDropdown.Value
@@ -2786,27 +2652,18 @@ Toggles.AutoSkillTree:OnChanged(function()
 					local success = getRemote:InvokeServer("S_Equipment", "Unlock", {skillId})
 					if success then
 						anyUnlocked = true
-						Library:Notify({
-							Title = "Unlocked Skill",
-							Description = "ID: " .. skillId,
-							Time = 1
-						})
+						Library:Notify({ Title = "Unlocked Skill", Description = "ID: " .. skillId, Time = 1 })
 						task.wait(0.5)
 					end
 				end
 			end
 
 			if not anyUnlocked then
-				Library:Notify({
-					Title = "Skill Tree",
-					Description = "All selected paths complete.",
-					Time = 3
-				})
+				Library:Notify({ Title = "Skill Tree", Description = "All selected paths complete.", Time = 3 })
 				getgenv().AutoSkillTree = false
 				Toggles.AutoSkillTree:SetValue(false)
 				break
 			end
-
 			task.wait(1)
 		end
 	end)
@@ -2855,7 +2712,7 @@ SkillTreeGroup:AddDropdown("Priority3Dropdown", {
 })
 
 -- ==========================================
--- MISC TAB : Slot Groupbox
+-- GLOBAL TAB : Slots
 -- ==========================================
 
 SlotGroup:AddToggle("AutoSelectSlot", {
@@ -2872,7 +2729,6 @@ Toggles.AutoSelectSlot:OnChanged(function()
 				getRemote:InvokeServer(unpack(args))
 				task.wait(1)
 			until lp:GetAttribute("Slot") or not getgenv().AutoSlot
-
 			getRemote:InvokeServer("Functions", "Teleport", "Lobby")
 		end)
 	end
@@ -2900,7 +2756,6 @@ Toggles.AutoPrestigeToggle:OnChanged(function()
 			if not slotIdx or not pData.Slots[slotIdx] then return end
 			local gold = pData.Slots[slotIdx].Currency.Gold
 			local requiredGold = Options.PrestigeGoldSlider.Value * 1000000
-
 			if gold < requiredGold then return end
 
 			while getgenv().AutoPrestige do
@@ -2908,11 +2763,7 @@ Toggles.AutoPrestigeToggle:OnChanged(function()
 					if not getgenv().AutoPrestige then break end
 					local success = getRemote:InvokeServer("S_Equipment", "Prestige", {Boosts = Options.SelectBoostDropdown.Value, Talents = Memory})
 					if success then
-						Library:Notify({
-							Title = "Successfully Prestiged",
-							Description = "Prestiged with " .. Options.SelectBoostDropdown.Value .. " and " .. Memory,
-							Time = 5
-						})
+						Library:Notify({ Title = "Successfully Prestiged", Description = "Prestiged with " .. Options.SelectBoostDropdown.Value .. " and " .. Memory, Time = 5 })
 						break
 					end
 					task.wait(0.1)
@@ -2939,7 +2790,7 @@ SlotGroup:AddSlider("PrestigeGoldSlider", {
 })
 
 -- ==========================================
--- MISC TAB : Family Roll Groupbox
+-- GLOBAL TAB : Family Roll
 -- ==========================================
 
 FamilyRollGroup:AddToggle("AutoRollToggle", {
@@ -2950,33 +2801,24 @@ Toggles.AutoRollToggle:OnChanged(function()
 	getgenv().AutoRoll = Toggles.AutoRollToggle.Value
 	if getgenv().AutoRoll then
 		if game.PlaceId ~= 13379208636 then
-			Library:Notify({
-				Title = "TITANIC HUB",
-				Description = "You must be in the lobby to use family roll features.",
-				Time = 3
-			})
+			Library:Notify({ Title = "TITANIC HUB", Description = "You must be in the lobby to use family roll features.", Time = 3 })
 			return
 		end
 		task.spawn(function()
 			while getgenv().AutoRoll do
 				local targets, rarities
-
 				local text = Options.SelectFamily.Value
 				if text and text ~= "" then
 					text = string.lower(text)
 					targets = string.split(text, ",")
 				end
-
 				local raritySelected = Options.SelectFamilyRarity.Value
 				if raritySelected then
 					rarities = {}
 					for rarityName, isEnabled in pairs(raritySelected) do
-						if isEnabled then
-							table.insert(rarities, string.lower(rarityName))
-						end
+						if isEnabled then table.insert(rarities, string.lower(rarityName)) end
 					end
 				end
-				
 				roll(targets, rarities)
 				task.wait(0.25)
 			end
@@ -2991,11 +2833,7 @@ FamilyRollGroup:AddInput("SelectFamily", {
 })
 Options.SelectFamily:OnChanged(function()
 	if Options.SelectFamily.Value ~= "" then
-		Library:Notify({
-			Title = "TITANIC HUB",
-			Description = "Families selected: " .. Options.SelectFamily.Value,
-			Time = 2
-		})
+		Library:Notify({ Title = "TITANIC HUB", Description = "Families selected: " .. Options.SelectFamily.Value, Time = 2 })
 	end
 end)
 
@@ -3009,7 +2847,48 @@ FamilyRollGroup:AddDropdown("SelectFamilyRarity", {
 FamilyRollGroup:AddLabel("Mythical families won't be rolled\nSeparate families with commas & no spaces (Fritz,Yeager)", true)
 
 -- ==========================================
--- SETTINGS TAB : Webhook & UI Groupbox
+-- GLOBAL TAB : Settings
+-- ==========================================
+
+SettingsGroup:AddToggle("AutoHideToggle", {
+	Text = "Auto Hide GUI",
+	Default = false,
+})
+
+SettingsGroup:AddToggle("AutoClaimAchievementsToggle", {
+	Text = "Auto Claim Achievements",
+	Default = false,
+})
+Toggles.AutoClaimAchievementsToggle:OnChanged(function()
+	getgenv().AutoClaimAchievements = Toggles.AutoClaimAchievementsToggle.Value
+	if getgenv().AutoClaimAchievements then
+		task.spawn(function()
+			while getgenv().AutoClaimAchievements do
+				if game.PlaceId ~= 14916516914 then task.wait(10) continue end
+				local claimedAny = false
+				for i = 1, 70 do
+					local ok, result = pcall(function() return getRemote:InvokeServer("S_Achievements", "Claim", i) end)
+					if ok and result ~= nil then claimedAny = true end
+				end
+				if claimedAny then
+					Library:Notify({ Title = "Achievements", Description = "Claimed available achievements!", Time = 3 })
+				end
+				task.wait(30)
+			end
+		end)
+	end
+end)
+
+SettingsGroup:AddToggle("Disable3DRendering", {
+	Text = "Disable 3D Rendering (FPS Boost)",
+	Default = false,
+})
+Toggles.Disable3DRendering:OnChanged(function()
+	RunService:Set3dRenderingEnabled(not Toggles.Disable3DRendering.Value)
+end)
+
+-- ==========================================
+-- GLOBAL TAB : Webhook
 -- ==========================================
 
 WebhookGroup:AddToggle("ToggleRewardWebhook", {
@@ -3037,60 +2916,77 @@ Options.WebhookUrl:OnChanged(function()
 	webhook = Options.WebhookUrl.Value
 end)
 
-SettingsGroup:AddToggle("AutoHideToggle", {
-	Text = "Auto Hide GUI",
-	Default = false,
+-- ==========================================
+-- STATS TAB
+-- ==========================================
+
+local labelSessionTime = SessionGroup:AddLabel("Session Time: 00:00:00")
+local labelGames       = SessionGroup:AddLabel("Games Played: 0")
+local labelGold        = SessionGroup:AddLabel("Total Gold: 0")
+local labelGems        = SessionGroup:AddLabel("Total Gems: 0")
+local labelXP          = SessionGroup:AddLabel("Total XP: 0")
+local labelMythicals   = SessionGroup:AddLabel("Mythical Drops: 0")
+local labelCrashes     = SessionGroup:AddLabel("Crashes Detected: 0")
+
+local labelGoldHour  = RatesGroup:AddLabel("Gold / Hour: 0")
+local labelGamesHour = RatesGroup:AddLabel("Games / Hour: 0")
+local labelAvgGold   = RatesGroup:AddLabel("Avg Gold / Game: 0")
+
+SessionGroup:AddButton({
+	Text = "Reset Session",
+	Func = function()
+		sessionStats.startTime    = os.time()
+		sessionStats.gamesPlayed  = 0
+		sessionStats.totalGold    = 0
+		sessionStats.totalGems    = 0
+		sessionStats.totalXP      = 0
+		sessionStats.totalKills   = 0
+		sessionStats.mythicalDrops = 0
+		sessionStats.crashes      = 0
+		writefile("./THUB1/aotr/s_elapsed.txt", "0") -- reset elapsed too
+		SaveSessionStats()
+		Library:Notify({ Title = "Stats", Description = "Session reset!", Time = 2 })
+	end,
 })
 
-SettingsGroup:AddToggle("AutoClaimAchievementsToggle", {
-    Text = "Auto Claim Achievements",
-    Default = false,
-})
-Toggles.AutoClaimAchievementsToggle:OnChanged(function()
-    getgenv().AutoClaimAchievements = Toggles.AutoClaimAchievementsToggle.Value
-    
-    if getgenv().AutoClaimAchievements then
-        task.spawn(function()
-            while getgenv().AutoClaimAchievements do
-                if game.PlaceId ~= 14916516914 then
-                    task.wait(10)
-                    continue
-                end
-                
-                local claimedAny = false
-                
-                -- Achievement 1 se 50 tak claim try karo
-                for i = 1, 70 do
-                    local ok, result = pcall(function()
-                        return getRemote:InvokeServer("S_Achievements", "Claim", i)
-                    end)
-                    
-                    if ok and result ~= nil then
-                        claimedAny = true
-                    end
-                end
-                
-                if claimedAny then
-                    Library:Notify({
-                        Title = "Achievements",
-                        Description = "Claimed available achievements!",
-                        Time = 3
-                    })
-                end
-                
-                task.wait(30) -- Har 30 sec mein check
-            end
-        end)
-    end
-end)
-
-SettingsGroup:AddToggle("Disable3DRendering", {
-	Text = "Disable 3D Rendering (FPS Boost)",
+CrashGroup:AddToggle("AutoRejoinToggle", {
+	Text = "Auto Rejoin on Crash",
 	Default = false,
 })
-Toggles.Disable3DRendering:OnChanged(function()
-	RunService:Set3dRenderingEnabled(not Toggles.Disable3DRendering.Value)
+Toggles.AutoRejoinToggle:OnChanged(function()
+	getgenv().AutoRejoin = Toggles.AutoRejoinToggle.Value
+	if getgenv().AutoRejoin then
+		startCrashDetection()
+	else
+		stopCrashDetection()
+	end
 end)
+
+CrashGroup:AddLabel("Detects stuck/crashed missions\nand auto returns to lobby")
+
+task.spawn(function()
+	while not Library.Unloaded do
+		pcall(function()
+			labelSessionTime:SetText("Session Time: "  .. getSessionTime())
+			labelGames:SetText("Games Played: "        .. sessionStats.gamesPlayed)
+			labelGold:SetText("Total Gold: "           .. sessionStats.totalGold)
+			labelGems:SetText("Total Gems: "           .. sessionStats.totalGems)
+			labelXP:SetText("Total XP: "               .. sessionStats.totalXP)
+			labelMythicals:SetText("Mythical Drops: "  .. sessionStats.mythicalDrops)
+			labelCrashes:SetText("Crashes Detected: "  .. sessionStats.crashes)
+			labelGoldHour:SetText("Gold / Hour: "      .. getGoldPerHour())
+			labelGamesHour:SetText("Games / Hour: "    .. getGamesPerHour())
+			local avgGold = sessionStats.gamesPlayed > 0
+				and math.floor(sessionStats.totalGold / sessionStats.gamesPlayed) or 0
+			labelAvgGold:SetText("Avg Gold / Game: "   .. avgGold)
+		end)
+		task.wait(1)
+	end
+end)
+
+-- ==========================================
+-- SETTINGS TAB
+-- ==========================================
 
 SettingsGroup:AddLabel("Menu toggle"):AddKeyPicker("MenuKeybind", { Default = "RightControl", NoUI = true, Text = "Menu keybind" })
 Library.ToggleKeybind = Options.MenuKeybind
@@ -3101,7 +2997,6 @@ SaveManager:SetLibrary(Library)
 ThemeManager:SetFolder("THUB1/aotr")
 SaveManager:SetFolder("THUB1/aotr")
 
--- Titanic Hub colour scheme + Gotham font
 ThemeManager:SetDefaultTheme({
 	FontColor       = Color3.fromRGB(225, 225, 225),
 	MainColor       = Color3.fromRGB(28, 28, 28),
@@ -3118,13 +3013,13 @@ ThemeManager:LoadDefault()
 SaveManager:LoadAutoloadConfig()
 
 Library:OnUnload(function()
-		setNoclip(false)
+	setNoclip(false)
 	Library.Unloaded = true
 end)
 
 task.spawn(function()
 	while not Library.Unloaded do
-		local success, err = pcall(ExecuteImmediateAutomation)
+		pcall(ExecuteImmediateAutomation)
 		task.wait(0.5)
 	end
 end)
@@ -3138,20 +3033,15 @@ end)
 
 -- Auto Hide Logic
 task.spawn(function()
-	task.wait(0.5) -- Wait for config load
+	task.wait(0.5)
 	if getgenv().DeleteMap then DeleteMap() end
 	if Toggles.AutoHideToggle.Value then
 		Library:Toggle(false)
-		Library:Notify({
-			Title = "TITANIC HUB",
-			Description = "Auto Hid GUI",
-			Time = 2
-		})
+		Library:Notify({ Title = "TITANIC HUB", Description = "Auto Hid GUI", Time = 2 })
 	end
 end)
+
 task.spawn(function()
-    task.wait(1)
-    pcall(function()
-        Library:SetFont(Enum.Font.Gotham)
-    end)
+	task.wait(1)
+	pcall(function() Library:SetFont(Enum.Font.Gotham) end)
 end)
