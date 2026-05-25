@@ -2436,31 +2436,53 @@ UpgradesGroup:AddToggle("AutoUpgradeToggle", {
 Toggles.AutoUpgradeToggle:OnChanged(function()
 	getgenv().AutoUpgrade = Toggles.AutoUpgradeToggle.Value
 	if not getgenv().AutoUpgrade then return end
+	if game.PlaceId ~= 14916516914 then
+		Library:Notify({ Title = "Auto Upgrade", Description = "Works in Lobby!", Time = 4 })
+		getgenv().AutoUpgrade = false
+		Toggles.AutoUpgradeToggle:SetValue(false)
+		return
+	end
 	task.spawn(function()
 		while getgenv().AutoUpgrade do
+			if game.PlaceId ~= 14916516914 then
+				getgenv().AutoUpgrade = false
+				Toggles.AutoUpgradeToggle:SetValue(false)
+				break
+			end
 			local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
 			if not ok or not liveData or type(liveData) ~= "table" then task.wait(2) continue end
 
-			local slotIndex = liveData.Current_Slot or lp:GetAttribute("Slot")
-local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
+			local slotIndex = liveData.Current_Slot
+			local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
 			if not slotData then task.wait(2) continue end
 
 			local weapon = slotData.Weapon
 			local upgrades = slotData.Upgrades and slotData.Upgrades[weapon]
 			if not upgrades then task.wait(2) continue end
 
-			local anyDone = false
-			for upg, lvl in next, upgrades do
-				if lvl >= 15 then continue end
-				local success, result = pcall(function()
-					return getRemote:InvokeServer("S_Equipment", "Upgrade", upg)
-				end)
-				if success and result then
-					anyDone = true
-					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " ") .. " Lv " .. tostring(lvl + 1), Time = 1.5 })
-					task.wait(0.5)
-				end
-			end
+			-- Collect all upgrades not at max into a table
+local upgradeList = {}
+for upg, lvl in next, upgrades do
+    if lvl < 15 then
+        table.insert(upgradeList, upg)
+    end
+end
+
+local anyDone = false
+if #upgradeList > 0 then
+    local success, result = pcall(function()
+        return getRemote:InvokeServer("S_Equipment", "Upgrade", upgradeList)
+    end)
+    if success and result then
+        anyDone = true
+        Library:Notify({
+            Title = "Auto Upgrade",
+            Description = "Upgraded " .. #upgradeList .. " stats!",
+            Time = 2
+        })
+        task.wait(1)
+    end
+end
 
 			if not anyDone then
 				Library:Notify({ Title = "Auto Upgrade", Description = weapon .. " fully maxed on slot " .. tostring(slotIndex), Time = 3 })
@@ -2482,16 +2504,9 @@ Toggles.AutoEnhanceToggle:OnChanged(function()
 	if getgenv().AutoPerk then
 		if game.PlaceId ~= 14916516914 then return end
 		task.spawn(function()
-			local ok, plrData = pcall(function()
-    return getRemote:InvokeServer("Data", "Copy")
-end)
-if not ok or not plrData or not plrData.Slots then
-    Library:Notify({ Title = "Auto Perk", Description = "Failed to get data, try again!", Time = 3 })
-    getgenv().AutoPerk = false
-    Toggles.AutoEnhanceToggle:SetValue(false)
-    return
-end
-local slotIndex = plrData.Current_Slot or lp:GetAttribute("Slot")
+			local plrData = GetPlayerData()
+			if not plrData or not plrData.Slots then return end
+			local slotIndex = lp:GetAttribute("Slot")
 			if not slotIndex or not plrData.Slots[slotIndex] then
 				getgenv().AutoPerk = false
 				Toggles.AutoEnhanceToggle:SetValue(false)
@@ -2554,9 +2569,14 @@ local slotIndex = plrData.Current_Slot or lp:GetAttribute("Slot")
 					Library:Notify({ Title = "Auto Perk", Description = "No more food perks found.", Time = 3 })
 					break
 				end
+-- Build dictionary format {[id] = 1} as seen in log
+local perkDict = {}
+for _, id in ipairs(validPerks) do
+    perkDict[id] = 1
+end
 
-				if getRemote:InvokeServer("S_Equipment", "Enhance", equippedPerkId, validPerks) then
-					for _, id in ipairs(validPerks) do storagePerks[id] = nil end
+if getRemote:InvokeServer("S_Equipment", "Enhance", equippedPerkId, perkDict) then
+    for _, id in ipairs(validPerks) do storagePerks[id] = nil end
 					currentXP = currentXP + totalXPGain
 					while currentLevel < 10 do
 						local thresholds = Perk_Level_XP[rarity]
@@ -2644,8 +2664,16 @@ Toggles.AutoSkillTree:OnChanged(function()
 			local anyUnlocked = false
 			for _, path in ipairs(paths) do
 				for _, skillId in ipairs(path) do
-					if table.find(slotData.Skills.Unlocked, skillId) then continue end
-					local success = getRemote:InvokeServer("S_Equipment", "Unlock", {skillId})
+					-- Check both string and number versions since server may store either
+local alreadyUnlocked = false
+for _, v in ipairs(slotData.Skills.Unlocked) do
+    if tostring(v) == tostring(skillId) then
+        alreadyUnlocked = true
+        break
+    end
+end
+if alreadyUnlocked then continue end
+local success = getRemote:InvokeServer("S_Equipment", "Unlock", {tostring(skillId)})
 					if success then
 						anyUnlocked = true
 						Library:Notify({ Title = "Unlocked Skill", Description = "ID: " .. skillId, Time = 1 })
