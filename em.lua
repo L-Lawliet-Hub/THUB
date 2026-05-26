@@ -1673,15 +1673,15 @@ local Tabs = {
 -- Farm tab
 local MiscGroup      = Tabs.Farm:AddLeftGroupbox("Misc", "compass")
 local MainGroup      = Tabs.Farm:AddLeftGroupbox("Farm")
-local MovementGroup  = Tabs.Farm:AddRightGroupbox("Movement")
-local AutoStartGroup = Tabs.Farm:AddRightGroupbox("Auto Start")
+local MovementGroup  = Tabs.Farm:AddRightGroupbox("Movement", "move")
+local AutoStartGroup = Tabs.Farm:AddRightGroupbox("Auto Start", "play-circle")
 
 -- Utility tab
-local CombatGroup   = Tabs.Utility:AddLeftGroupbox("Combat Settings")
-local SecurityGroup = Tabs.Utility:AddLeftGroupbox("Security")
-local BoostGroup    = Tabs.Utility:AddLeftGroupbox("Boosted Maps")
+local CombatGroup   = Tabs.Utility:AddLeftGroupbox("Combat Settings", "shield")
+local SecurityGroup = Tabs.Utility:AddLeftGroupbox("Security", "shield-check")
+local BoostGroup    = Tabs.Utility:AddLeftGroupbox("Boosted Maps", "flame")
 local MasteryGroup  = Tabs.Utility:AddRightGroupbox("Mastery Farm")
-local FeaturesGroup = Tabs.Utility:AddRightGroupbox("Extras")
+local FeaturesGroup = Tabs.Utility:AddRightGroupbox("Extras", "plus-circle")
 
 -- Upgrades tab
 local UpgradesGroup  = Tabs.Upgrades:AddLeftGroupbox("Upgrades")
