@@ -1655,7 +1655,7 @@ end)
 local Window = Library:CreateWindow({
 	Title = "TITANIC HUB",
 	Footer = "AOT:R | FREE",
-	Icon = 
+	Icon = "https://github.com/L-Lawliet-Hub/THUB/hh.webp"
 	Center = true,
 	AutoShow = true,
 	Resizable = true,
