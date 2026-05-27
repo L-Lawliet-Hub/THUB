@@ -347,11 +347,12 @@ function AutoFarm:Start()
 			end
 
 			if getgenv().AutoFailsafe then
-				if not self.missionStartTime then
-					self.missionStartTime = os.clock()
+				if not getgenv()._missionStartTime then
+					getgenv()._missionStartTime = os.clock()
 				end
-				local missionElapsedTime = os.clock() - self.missionStartTime
-				if missionElapsedTime >= 900 then
+				local missionElapsedTime = os.clock() - getgenv()._missionStartTime
+				if missionElapsedTime >= 480 then
+					getgenv()._missionStartTime = nil
 					self:Stop()
 					task.spawn(function() getRemote:InvokeServer("Functions", "Teleport", "Lobby") end)
 					task.wait(0.5)
@@ -2921,6 +2922,8 @@ end)
 -- ==========================================
 
 local labelSessionTime = SessionGroup:AddLabel("Session Time: 00:00:00")
+local labelSlot        = SessionGroup:AddLabel("Current Slot: N/A")
+local labelWeapon      = SessionGroup:AddLabel("Current Weapon: N/A")
 local labelGames       = SessionGroup:AddLabel("Games Played: 0")
 local labelGold        = SessionGroup:AddLabel("Total Gold: 0")
 local labelGems        = SessionGroup:AddLabel("Total Gems: 0")
@@ -2968,6 +2971,27 @@ task.spawn(function()
 	while not Library.Unloaded do
 		pcall(function()
 			labelSessionTime:SetText("Session Time: "  .. getSessionTime())
+
+			-- Current slot + weapon
+			local currentSlotAttr = lp:GetAttribute("Slot")
+			if currentSlotAttr then
+				labelSlot:SetText("Current Slot: Slot " .. tostring(currentSlotAttr))
+				local liveSlotData = mapData and mapData.Slots and mapData.Slots[currentSlotAttr]
+				local weaponName = liveSlotData and liveSlotData.Weapon or nil
+				if not weaponName then
+					pcall(function()
+						local d = getRemote:InvokeServer("Data", "Copy")
+						if d and d.Slots and d.Slots[currentSlotAttr] then
+							weaponName = d.Slots[currentSlotAttr].Weapon
+						end
+					end)
+				end
+				labelWeapon:SetText("Current Weapon: " .. (weaponName or "N/A"))
+			else
+				labelSlot:SetText("Current Slot: N/A")
+				labelWeapon:SetText("Current Weapon: N/A")
+			end
+
 			labelGames:SetText("Games Played: "        .. sessionStats.gamesPlayed)
 			labelGold:SetText("Total Gold: "           .. sessionStats.totalGold)
 			labelGems:SetText("Total Gems: "           .. sessionStats.totalGems)
