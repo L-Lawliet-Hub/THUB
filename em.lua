@@ -1665,7 +1665,7 @@ local Tabs = {
 	Farm     = Window:AddTab("Main",     "house"),
 	Utility  = Window:AddTab("Utils",  "zap"),
 	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
-	Global   = Window:AddTab("Central",   "global"),
+	Global   = Window:AddTab("Central",   "globe"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
 }
@@ -1680,21 +1680,21 @@ local AutoStartGroup = Tabs.Farm:AddRightGroupbox("Auto Start", "power")
 local CombatGroup   = Tabs.Utility:AddLeftGroupbox("Combat Settings", "shield")
 local SecurityGroup = Tabs.Utility:AddLeftGroupbox("Security", "shield-check")
 local BoostGroup    = Tabs.Utility:AddLeftGroupbox("Boosted Maps", "flame")
-local MasteryGroup  = Tabs.Utility:AddRightGroupbox("Mastery Farm")
-local FeaturesGroup = Tabs.Utility:AddRightGroupbox("Extras", "more-horizontal")
+local MasteryGroup  = Tabs.Utility:AddRightGroupbox("Mastery Farm", "award")
+local FeaturesGroup = Tabs.Utility:AddRightGroupbox("Extras", "menu")
 
 -- Upgrades tab
-local UpgradesGroup  = Tabs.Upgrades:AddLeftGroupbox("Upgrades", "arrow-up-circle")
+local UpgradesGroup  = Tabs.Upgrades:AddLeftGroupbox("Upgrades", "trending-up")
 local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch")
 
 -- Global tab
 local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll", "shuffle")
 local SettingsGroup   = Tabs.Global:AddLeftGroupbox("Settings", "settings")
-local SlotGroup       = Tabs.Global:AddRightGroupbox("Slots", "grid")
+local SlotGroup       = Tabs.Global:AddRightGroupbox("Slots", "columns")
 local WebhookGroup    = Tabs.Global:AddRightGroupbox("Webhook", "link")
 
 -- Stats tab
-local SessionGroup = Tabs.Stats:AddLeftGroupbox("Session Stats", "bar-chart-2")
+local SessionGroup = Tabs.Stats:AddLeftGroupbox("Session Stats", "bar-chart")
 local RatesGroup   = Tabs.Stats:AddRightGroupbox("Rates", "gauge")
 local CrashGroup   = Tabs.Stats:AddRightGroupbox("Auto Rejoin", "log-in")
 
