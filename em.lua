@@ -1690,11 +1690,11 @@ local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch"
 -- Global tab
 local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll", "shuffle")
 local SettingsGroup   = Tabs.Global:AddLeftGroupbox("Settings", "settings")
-local SlotGroup       = Tabs.Global:AddRightGroupbox("Slots", "columns")
+local SlotGroup       = Tabs.Global:AddRightGroupbox("Slots", "list")
 local WebhookGroup    = Tabs.Global:AddRightGroupbox("Webhook", "link")
 
 -- Stats tab
-local SessionGroup = Tabs.Stats:AddLeftGroupbox("Session Stats", "bar-chart")
+local SessionGroup = Tabs.Stats:AddLeftGroupbox("Session Stats", "clock")
 local RatesGroup   = Tabs.Stats:AddRightGroupbox("Rates", "gauge")
 local CrashGroup   = Tabs.Stats:AddRightGroupbox("Auto Rejoin", "log-in")
 
