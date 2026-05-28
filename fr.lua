@@ -1398,21 +1398,38 @@ local function ExecuteImmediateAutomation()
 end
 
 local rollSessionCount = 0
+local _spinsTracked = nil  -- fallback tracker agar v1 zero aaye
 
 local function roll(targets, rarities, autoStore, storeRarities)
-	-- Direct remote call — no button simulation needed
-	local ok, v1, v2, familyName, familyId, history = pcall(function()
-		return getRemote:InvokeServer("Family", "Roll")
+	-- table.pack se seedha capture karo — pcall multi-return kuch executors mein
+	-- variable assign galat karta hai jab 5+ values hoti hain
+	local ok, results = pcall(function()
+		return table.pack(getRemote:InvokeServer("Family", "Roll"))
 	end)
 
-	if not ok or not familyName then return end
+	if not ok or not results then return end
+
+	-- Return format (log confirmed): v1=scrollsLeft, v2=0, v3=familyName, v4=familyId, v5=history
+	local v1        = results[1]
+	local familyName = results[3]
+	local familyId  = results[4]
+	local history   = results[5]
+
+	if not familyName then return end
 
 	rollSessionCount = rollSessionCount + 1
 
-	-- v1 = scrolls/spins remaining (counts down each roll)
-	local spinsLeft = (type(v1) == "number") and v1 or 0
+	-- Spins left: v1 se lo, agar 0 aaye toh tracked fallback use karo
+	local spinsLeft = 0
+	if type(v1) == "number" and v1 > 0 then
+		spinsLeft = v1
+		_spinsTracked = v1           -- sync tracker
+	elseif _spinsTracked and _spinsTracked > 0 then
+		_spinsTracked = _spinsTracked - 1
+		spinsLeft = _spinsTracked    -- countdown fallback
+	end
 
-	-- Rarity from last entry in history = the just-rolled family
+	-- Rarity from last history entry = just-rolled family
 	local familyRarity = ""
 	if type(history) == "table" and #history > 0 then
 		familyRarity = string.lower(history[#history].Rarity or "")
@@ -1424,7 +1441,7 @@ local function roll(targets, rarities, autoStore, storeRarities)
 	-- ── Per-roll notification ──────────────────────────────────
 	pcall(function()
 		Library:Notify({
-			Title = "🎲 Roll #" .. rollSessionCount,
+			Title = "Roll #" .. rollSessionCount,
 			Description = familyString .. "\n⟳ Spins Left: " .. spinsLeft,
 			Time = 2,
 		})
@@ -1451,7 +1468,6 @@ local function roll(targets, rarities, autoStore, storeRarities)
 			shouldStore = true
 		end
 	end
-	-- Always store when target is found
 	if stopRolling then shouldStore = true end
 
 	if shouldStore then
@@ -1461,7 +1477,7 @@ local function roll(targets, rarities, autoStore, storeRarities)
 		if not stopRolling then
 			pcall(function()
 				Library:Notify({
-					Title = "📦 Auto Stored",
+					Title = "Auto Stored",
 					Description = familyString,
 					Time = 3,
 				})
@@ -1482,8 +1498,8 @@ local function roll(targets, rarities, autoStore, storeRarities)
 			Library:Notify({
 				Title = "🎯 Target Found!",
 				Description = "Stored: " .. familyString ..
-					"\n🎲 Total Rolls: " .. rollSessionCount ..
-					"\n⟳ Spins Left: " .. spinsLeft,
+					"\nTotal Rolls: " .. rollSessionCount ..
+					"\nSpins Left: " .. spinsLeft,
 				Time = 10,
 			})
 		end)
@@ -1500,7 +1516,7 @@ local function roll(targets, rarities, autoStore, storeRarities)
 			end
 
 			local payload = {
-				content = isRareMythical and "🔥 RARE MYTHICAL! @everyone" or "✨ MYTHICAL FAMILY! @everyone",
+				content = isRareMythical and "RARE MYTHICAL! @everyone" or "MYTHICAL FAMILY! @everyone",
 				embeds = {{
 					title = "Family Roll",
 					color = isRareMythical and 16711680 or 16750848,
@@ -1511,7 +1527,7 @@ local function roll(targets, rarities, autoStore, storeRarities)
 								"User: " .. lp.Name .. "\n" ..
 								"Family: " .. familyString .. "\n" ..
 								"Total Rolls: " .. rollSessionCount .. "\n" ..
-								"Rare Mythical: " .. (isRareMythical and "YES 🔥" or "No") .. "\n" ..
+								"Rare Mythical: " .. (isRareMythical and "YES " or "No") .. "\n" ..
 								"\n```",
 							inline = true
 						}
@@ -2853,6 +2869,7 @@ Toggles.AutoRollToggle:OnChanged(function()
 			return
 		end
 		rollSessionCount = 0
+		_spinsTracked = nil
 		task.spawn(function()
 			while getgenv().AutoRoll do
 				local targets, rarities
@@ -2877,7 +2894,7 @@ Toggles.AutoRollToggle:OnChanged(function()
 					end
 				end
 				roll(targets, rarities, autoStore, storeRarities)
-				task.wait(0.25)
+				task.wait(0.05)
 			end
 		end)
 	end
