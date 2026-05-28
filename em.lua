@@ -892,6 +892,29 @@ local gamesPlayed = tonumber(readfile(path))
 local webhook
 
 -- ==========================================
+-- AUTO RETRY - PRESS RETRY BUTTON HELPER
+-- ==========================================
+-- Uses mouse simulation + Activate for reliable button clicking.
+-- Only retries on non-failed (win/complete) outcomes.
+
+local function pressRetryBtn(btn)
+	if not btn or not btn.Parent or not btn.Visible then return end
+	pcall(function()
+		local abs = btn.AbsolutePosition
+		local sz  = btn.AbsoluteSize
+		local cx  = abs.X + sz.X / 2
+		local cy  = abs.Y + sz.Y / 2
+		local inset = game:GetService("GuiService"):GetGuiInset().Y
+		if inset == 0 then inset = 36 end
+		game:GetService("VirtualInputManager"):SendMouseButtonEvent(cx, cy + inset, 0, true,  game, 1)
+		task.wait(0.06)
+		game:GetService("VirtualInputManager"):SendMouseButtonEvent(cx, cy + inset, 0, false, game, 1)
+		task.wait(0.04)
+		btn:Activate()
+	end)
+end
+
+-- ==========================================
 -- REWARDS LISTENER
 -- ==========================================
 
@@ -912,7 +935,7 @@ if rewards then
 			if res and res.Obtained then
 				sessionStats.totalGold = sessionStats.totalGold + (res.Obtained.Gold or 0)
 				sessionStats.totalGems = sessionStats.totalGems + (res.Obtained.Gems or 0)
-				sessionStats.totalXP = sessionStats.totalXP + (res.Obtained.XP or 0)
+				sessionStats.totalXP   = sessionStats.totalXP   + (res.Obtained.XP   or 0)
 			end
 		end)
 		if data.Special and next(data.Special) then
@@ -945,7 +968,52 @@ if rewards then
 			gamesUntilReturn = 0
 			writefile(returnCounterPath, "0")
 		end
-		
+
+		-- ==========================================
+		-- AUTO RETRY LOGIC
+		-- Checks the State label for a failure keyword.
+		-- Only presses Retry when the mission was NOT failed/defeated.
+		-- ==========================================
+		if getgenv().AutoRetry then
+			task.spawn(function()
+				-- Determine if this was a failed run
+				local failed = false
+				pcall(function()
+					local status = rewards:FindFirstChild("Main")
+						and rewards.Main:FindFirstChild("Info")
+						and rewards.Main.Info:FindFirstChild("State")
+					if status and status:IsA("TextLabel") then
+						local t = status.Text:lower()
+						failed = t:find("fail") ~= nil or t:find("defeat") ~= nil
+					end
+				end)
+
+				if not failed then
+					task.wait(2)
+					local retryBtn = nil
+					pcall(function()
+						local buttons = rewards:FindFirstChild("Main")
+							and rewards.Main:FindFirstChild("Info")
+							and rewards.Main.Info:FindFirstChild("Main")
+							and rewards.Main.Info.Main:FindFirstChild("Buttons")
+						if buttons then retryBtn = buttons:FindFirstChild("Retry") end
+					end)
+
+					if retryBtn and retryBtn.Visible then
+						-- Notify the server before clicking
+						pcall(function()
+							local retryRemote = ReplicatedStorage:FindFirstChild("Functions")
+								and ReplicatedStorage.Functions:FindFirstChild("Retry")
+							if retryRemote then retryRemote:InvokeServer("Add") end
+						end)
+						task.wait(0.3)
+						pressRetryBtn(retryBtn)
+					end
+				end
+			end)
+		end
+		-- ==========================================
+
 		if not getgenv().RewardWebhook then return end
 		
 		local start = os.clock()
@@ -1356,6 +1424,8 @@ local function setupAutoExecute()
 	end
 end
 
+-- ExecuteImmediateAutomation handles Auto Skip only.
+-- Auto Retry is handled entirely by the rewards visibility listener above.
 local function ExecuteImmediateAutomation()
 	if getgenv().AutoSkip then
 		local skip = INTERFACE:FindFirstChild("Skip")
@@ -1363,39 +1433,6 @@ local function ExecuteImmediateAutomation()
 		if skip and skip.Visible then
 			task.wait(1)
 			UseButton(skip:FindFirstChild("Interact"))
-		end
-	end
-
-	if getgenv().AutoRetry then
-		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
-		if rewardsGui and rewardsGui.Visible then
-			local retryBtn = rewardsGui:FindFirstChild("Main")
-				and rewardsGui.Main:FindFirstChild("Info")
-				and rewardsGui.Main.Info:FindFirstChild("Main")
-				and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
-				and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
-			
-			if not retryBtn or not retryBtn.Visible then
-				for _, btn in ipairs(rewardsGui:GetDescendants()) do
-					if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and btn.Active then
-						if btn.Name == "Retry" or (btn:IsA("TextButton") and btn.Text:find("Retry")) then
-							retryBtn = btn
-							break
-						end
-					end
-				end
-			end
-			
-			if retryBtn and retryBtn.Visible and retryBtn.Active then
-				task.wait(1)
-				local clicked = UseButton(retryBtn)
-				if not clicked then
-					GuiService.SelectedObject = retryBtn
-					task.wait(0.1)
-					vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-					vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-				end
-			end
 		end
 	end
 end
@@ -1784,7 +1821,6 @@ MainGroup:AddToggle("AutoRetryToggle", {
 })
 Toggles.AutoRetryToggle:OnChanged(function()
 	getgenv().AutoRetry = Toggles.AutoRetryToggle.Value
-	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
 end)
 
 MainGroup:AddToggle("SoloOnlyToggle", {
@@ -2946,7 +2982,7 @@ SessionGroup:AddButton({
 		sessionStats.totalKills   = 0
 		sessionStats.mythicalDrops = 0
 		sessionStats.crashes      = 0
-		writefile("./THUB1/aotr/s_elapsed.txt", "0") -- reset elapsed too
+		writefile("./THUB1/aotr/s_elapsed.txt", "0")
 		SaveSessionStats()
 		Library:Notify({ Title = "Stats", Description = "Session reset!", Time = 2 })
 	end,
@@ -2972,7 +3008,6 @@ task.spawn(function()
 		pcall(function()
 			labelSessionTime:SetText("Session Time: "  .. getSessionTime())
 
-			-- Current slot + weapon
 			local currentSlotAttr = lp:GetAttribute("Slot")
 			if currentSlotAttr then
 				labelSlot:SetText("Current Slot: Slot " .. tostring(currentSlotAttr))
