@@ -1348,7 +1348,7 @@ local function setupAutoExecute()
 			repeat task.wait() until game:IsLoaded()
 			task.wait(5)
 			getgenv().AutoExec = false
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/fr.lua"))()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/ins.lua"))()
 		]])
 	end
 end
@@ -1397,24 +1397,40 @@ local function ExecuteImmediateAutomation()
 	end
 end
 
-local function roll(targets, rarities)
+local rollSessionCount = 0
+
+local function roll(targets, rarities, autoStore, storeRarities)
 	-- Direct remote call — no button simulation needed
-	local ok, v1, v2, familyName, v4, history = pcall(function()
+	local ok, v1, v2, familyName, familyId, history = pcall(function()
 		return getRemote:InvokeServer("Family", "Roll")
 	end)
 
 	if not ok or not familyName then return end
 
-	-- Rarity comes from the last entry in history (= the just-rolled family)
+	rollSessionCount = rollSessionCount + 1
+
+	-- v1 = scrolls/spins remaining (counts down each roll)
+	local spinsLeft = (type(v1) == "number") and v1 or 0
+
+	-- Rarity from last entry in history = the just-rolled family
 	local familyRarity = ""
 	if type(history) == "table" and #history > 0 then
 		familyRarity = string.lower(history[#history].Rarity or "")
 	end
 
-	local familyRarityDisplay = familyRarity:sub(1, 1):upper() .. familyRarity:sub(2)
-	local familyString = familyName .. " (" .. familyRarityDisplay .. ")"
+	local rarityDisplay = familyRarity:sub(1, 1):upper() .. familyRarity:sub(2)
+	local familyString = familyName .. " (" .. rarityDisplay .. ")"
 
-	-- Check stop conditions
+	-- ── Per-roll notification ──────────────────────────────────
+	pcall(function()
+		Library:Notify({
+			Title = "🎲 Roll #" .. rollSessionCount,
+			Description = familyString .. "\n⟳ Spins Left: " .. spinsLeft,
+			Time = 2,
+		})
+	end)
+
+	-- ── Stop conditions ────────────────────────────────────────
 	local stopRolling = false
 	if targets then
 		local lowerName = string.lower(familyName)
@@ -1428,6 +1444,32 @@ local function roll(targets, rarities)
 	if rarities and table.find(rarities, familyRarity) then stopRolling = true end
 	if familyRarity == "mythical" then stopRolling = true end
 
+	-- ── Auto Store ─────────────────────────────────────────────
+	local shouldStore = false
+	if autoStore and type(storeRarities) == "table" then
+		if table.find(storeRarities, familyRarity) then
+			shouldStore = true
+		end
+	end
+	-- Always store when target is found
+	if stopRolling then shouldStore = true end
+
+	if shouldStore then
+		pcall(function()
+			getRemote:InvokeServer("Family", "Store", familyId)
+		end)
+		if not stopRolling then
+			pcall(function()
+				Library:Notify({
+					Title = "📦 Auto Stored",
+					Description = familyString,
+					Time = 3,
+				})
+			end)
+		end
+	end
+
+	-- ── Target hit → stop rolling ──────────────────────────────
 	if stopRolling then
 		getgenv().AutoRoll = false
 		pcall(function()
@@ -1436,11 +1478,12 @@ local function roll(targets, rarities)
 			end
 		end)
 
-		-- Notification on target/mythical hit
 		pcall(function()
 			Library:Notify({
-				Title = "🎯 Family Rolled!",
-				Description = "Got: " .. familyString,
+				Title = "🎯 Target Found!",
+				Description = "Stored: " .. familyString ..
+					"\n🎲 Total Rolls: " .. rollSessionCount ..
+					"\n⟳ Spins Left: " .. spinsLeft,
 				Time = 10,
 			})
 		end)
@@ -1467,6 +1510,7 @@ local function roll(targets, rarities)
 							value = "```\n" ..
 								"User: " .. lp.Name .. "\n" ..
 								"Family: " .. familyString .. "\n" ..
+								"Total Rolls: " .. rollSessionCount .. "\n" ..
 								"Rare Mythical: " .. (isRareMythical and "YES 🔥" or "No") .. "\n" ..
 								"\n```",
 							inline = true
@@ -1484,8 +1528,6 @@ local function roll(targets, rarities)
 				Body = HttpService:JSONEncode(payload)
 			})
 		end
-
-		return
 	end
 end
 
@@ -2810,6 +2852,7 @@ Toggles.AutoRollToggle:OnChanged(function()
 			Library:Notify({ Title = "TITANIC HUB", Description = "You must be in the lobby to use family roll features.", Time = 3 })
 			return
 		end
+		rollSessionCount = 0
 		task.spawn(function()
 			while getgenv().AutoRoll do
 				local targets, rarities
@@ -2825,7 +2868,15 @@ Toggles.AutoRollToggle:OnChanged(function()
 						if isEnabled then table.insert(rarities, string.lower(rarityName)) end
 					end
 				end
-				roll(targets, rarities)
+				-- Auto Store params
+				local autoStore = getgenv().AutoStoreFamilyEnabled or false
+				local storeRarities = {}
+				if autoStore and Options.AutoStoreRarityDropdown and Options.AutoStoreRarityDropdown.Value then
+					for rarityName, isEnabled in pairs(Options.AutoStoreRarityDropdown.Value) do
+						if isEnabled then table.insert(storeRarities, string.lower(rarityName)) end
+					end
+				end
+				roll(targets, rarities, autoStore, storeRarities)
 				task.wait(0.25)
 			end
 		end)
@@ -2851,6 +2902,25 @@ FamilyRollGroup:AddDropdown("SelectFamilyRarity", {
 })
 
 FamilyRollGroup:AddLabel("Mythical families won't be rolled\nSeparate families with commas & no spaces (Fritz,Yeager)", true)
+
+FamilyRollGroup:AddDivider()
+
+FamilyRollGroup:AddToggle("AutoStoreFamilyToggle", {
+	Text = "Auto Store Family",
+	Default = false,
+})
+Toggles.AutoStoreFamilyToggle:OnChanged(function()
+	getgenv().AutoStoreFamilyEnabled = Toggles.AutoStoreFamilyToggle.Value
+end)
+
+FamilyRollGroup:AddDropdown("AutoStoreRarityDropdown", {
+	Values = {"Rare", "Epic", "Legendary", "Mythical"},
+	Default = {},
+	Multi = true,
+	Text = "Store At Rarity",
+})
+
+FamilyRollGroup:AddLabel("Stores rolled family to storage\nwhen its rarity matches selected rarities", true)
 
 -- ==========================================
 -- GLOBAL TAB : Settings
