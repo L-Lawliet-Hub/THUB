@@ -244,22 +244,6 @@ function AutoFarm:Start()
 			local char = lp.Character
 			local playerReady = char and (char:GetAttribute("Shifter") or (char:FindFirstChild("Main") and char.Main:FindFirstChild("W")))
 			local mapReady = workspace:FindFirstChild("Unclimbable") ~= nil
-			-- Waves mode: no Titans folder; ready when Objective.Waves exists and has enemies
-			local isWavesMode = mapReady
-				and workspace.Unclimbable:FindFirstChild("Objective")
-				and workspace.Unclimbable.Objective:FindFirstChild("Waves") ~= nil
-			if isWavesMode then
-				-- In Waves, enemies live under workspace (not workspace.Titans)
-				-- Check that at least one Hitboxes.Hit.Nape exists anywhere in workspace
-				local hasEnemy = false
-				for _, v in ipairs(workspace:GetDescendants()) do
-					if v.Name == "Nape" and v.Parent and v.Parent.Name == "Hit" then
-						hasEnemy = true
-						break
-					end
-				end
-				return playerReady and mapReady and (hasEnemy or workspace.Unclimbable.Objective.Waves ~= nil)
-			end
 			local titans = workspace:FindFirstChild("Titans")
 			local titansReady = false
 			if titans then
@@ -339,29 +323,9 @@ function AutoFarm:Start()
 			local slotData = slotIndex and mapData and mapData.Slots and mapData.Slots[slotIndex]
 
 			if not slotData then
-				-- Waves mode: mapData.Slots doesn't exist; build a minimal slotData from live server data
-				local isWavesMode = workspace:FindFirstChild("Unclimbable")
-					and workspace.Unclimbable:FindFirstChild("Objective")
-					and workspace.Unclimbable.Objective:FindFirstChild("Waves") ~= nil
-				if isWavesMode then
-					local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
-					if ok and liveData and type(liveData) == "table" then
-						local liveSlot = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
-						if liveSlot then
-							slotData = liveSlot
-							-- Also keep mapData.Slots updated so later checks work
-							if mapData then
-								mapData.Slots = mapData.Slots or {}
-								mapData.Slots[slotIndex] = liveSlot
-							end
-						end
-					end
-				end
-				if not slotData then
-					UpdateStatus("Waiting for data...")
-					task.wait(1)
-					continue
-				end
+				UpdateStatus("Waiting for data...")
+				task.wait(1)
+				continue
 			end
 
 			-- Die at Streak check
@@ -412,15 +376,14 @@ function AutoFarm:Start()
 			local ws_ObjectiveFolder = workspace:FindFirstChild("Unclimbable") and workspace.Unclimbable:FindFirstChild("Objective")
 			local rs_ObjectiveFolder = ReplicatedStorage:FindFirstChild("Objectives")
 			local mapType = workspace:GetAttribute("Type") or (mapData and mapData.Map and mapData.Map.Type)
-			local isWavesMode = ws_ObjectiveFolder and ws_ObjectiveFolder:FindFirstChild("Waves") ~= nil
 
-			local isArmoredRaid = ws_ObjectiveFolder and ws_ObjectiveFolder:FindFirstChild("Armored_Boss")
-			local isFemaleRaid = rs_ObjectiveFolder and rs_ObjectiveFolder:FindFirstChild("Defeat_Annie")
-			local femaleExists = ws_ObjectiveFolder and ws_ObjectiveFolder:FindFirstChild("Female_Boss")
-			local attackExists = ws_ObjectiveFolder and ws_ObjectiveFolder:FindFirstChild("Attack_Boss")
+			local isArmoredRaid = ws_ObjectiveFolder:FindFirstChild("Armored_Boss")
+			local isFemaleRaid = rs_ObjectiveFolder:FindFirstChild("Defeat_Annie")
+			local femaleExists = ws_ObjectiveFolder:FindFirstChild("Female_Boss")
+			local attackExists = ws_ObjectiveFolder:FindFirstChild("Attack_Boss")
 			local armoredTitan = titansFolder and titansFolder:FindFirstChild("Armored_Titan")
 			local hasReinerObjective = armoredTitan and armoredTitan:GetAttribute("State")
-			local isColossalRaid = (rs_ObjectiveFolder and rs_ObjectiveFolder:FindFirstChild("Defeat_Bertholdt")) or (ws_ObjectiveFolder and ws_ObjectiveFolder:FindFirstChild("Colossal_Boss"))
+			local isColossalRaid = rs_ObjectiveFolder:FindFirstChild("Defeat_Bertholdt") or ws_ObjectiveFolder:FindFirstChild("Colossal_Boss")
 
 			if isFemaleRaid and not femaleExists and not attackExists then
 				task.wait(0.05)
@@ -548,26 +511,14 @@ function AutoFarm:Start()
 			if now >= nextTitanCacheUpdate then
 				nextTitanCacheUpdate = now + 0.1
 				table.clear(validNapes)
-				if isWavesMode or not titansFolder then
-					-- Waves: enemies are not under workspace.Titans; scan workspace for any Hitboxes.Hit.Nape
-					for _, v in ipairs(workspace:GetDescendants()) do
-						if v.Name == "Nape" and v.Parent and v.Parent.Name == "Hit" then
-							local model = v.Parent.Parent.Parent  -- Hitboxes -> model root
-							if model and not model:GetAttribute("Dead") and not model:GetAttribute("Killed") then
-								table.insert(validNapes, v)
-							end
-						end
-					end
-				else
-					for _, v in ipairs(titansFolder:GetChildren()) do
-						if v:GetAttribute("Killed") then continue end
-						local hit = v:FindFirstChild("Hitboxes") and v.Hitboxes:FindFirstChild("Hit")
-						if hit then
-							local fake = v:FindFirstChild("Fake")
-							if fake and fake:FindFirstChild("Collision") and not fake.Collision.CanCollide then continue end
-							local nape = hit:FindFirstChild("Nape")
-							if nape then table.insert(validNapes, nape) end
-						end
+				for _, v in ipairs(titansFolder:GetChildren()) do
+					if v:GetAttribute("Killed") then continue end
+					local hit = v:FindFirstChild("Hitboxes") and v.Hitboxes:FindFirstChild("Hit")
+					if hit then
+						local fake = v:FindFirstChild("Fake")
+						if fake and fake:FindFirstChild("Collision") and not fake.Collision.CanCollide then continue end
+						local nape = hit:FindFirstChild("Nape")
+						if nape then table.insert(validNapes, nape) end
 					end
 				end
 			end
@@ -2766,235 +2717,192 @@ SkillTreeGroup:AddDropdown("Priority3Dropdown", {
 })
 
 -- ==========================================
--- WAVES TAB
+-- WAVES TAB LOGIC
 -- ==========================================
 
-getgenv().WavesUpgradeGear    = false
-getgenv().WavesBuyBaseUpgrades = false
-getgenv().WavesSelectedUpgrades = {}
-getgenv().WavesAutoFarm        = false
-getgenv().WavesBuySpears       = false
-getgenv().WavesAutoStartVote   = false
-getgenv().WavesReturnToLobby   = false
-getgenv().WavesReturnAfterX    = 40
+-- Waves upgrade names (as shown in screenshot: Max, Refill, Regen, Replenish, Revive)
+local WavesUpgradeOptions = {"Max", "Refill", "Regen", "Replenish", "Revive"}
 
--- Maps display name -> exact key the server expects (confirmed from log)
-local WavesUpgradeKeyMap = {
-	["Max"]       = "Max",
-	["Refill"]    = "Refills",
-	["Regen"]     = "Regen",
-	["Replenish"] = "Replenish",
-	["Revive"]    = "Revive",
-}
+local wavesAutoFarmRunning = false
+local wavesVoteRunning = false
+local wavesBuySpearRunning = false
 
-local function doWavesUpgrades()
-	for displayName, _ in pairs(getgenv().WavesSelectedUpgrades) do
-		if getgenv().WavesSelectedUpgrades[displayName] then
-			local key = WavesUpgradeKeyMap[displayName]
-			if key then
-				pcall(function()
-					getRemote:InvokeServer("Waves", "Upgrade", {key})
-				end)
-				task.wait(0.3)
-			end
-		end
-	end
+local function isWavesMode()
+	return workspace:FindFirstChild("Waves") ~= nil
+		or (mapData and mapData.Map and mapData.Map.Type == "Waves")
+		or workspace:GetAttribute("Type") == "Waves"
 end
 
+local function doWavesVote()
+	pcall(function()
+		postRemote:FireServer("Waves", "Vote")
+	end)
+end
+
+local function doWavesBuyUpgrade(upgradeName)
+	-- GET "Waves", "Upgrade", upgradeName
+	local ok, result = pcall(function()
+		return getRemote:InvokeServer("Waves", "Upgrade", upgradeName)
+	end)
+	return ok and result
+end
+
+local function doWavesBuySpears()
+	-- Market buy thunder spears: GET "Waves", "Buy", "Thunder_Spears" or "Spear"
+	-- From log: Constants show "Waves", "Buy", "Invoke" in Market.Buy
+	-- The item tag from log is "Thunder Barrage" or bought via Market "Buy"
+	pcall(function()
+		-- Try direct market buy using item name from Waves market
+		getRemote:InvokeServer("Waves", "Buy", "Thunder_Spears")
+	end)
+	-- Also try POST approach
+	pcall(function()
+		postRemote:FireServer("Market", "Buy", "Thunder_Spears", 1)
+	end)
+end
+
+local function getWaveNumber()
+	local wavesObj = workspace:FindFirstChild("Waves")
+	if wavesObj then
+		local waveAttr = wavesObj:GetAttribute("Wave") or wavesObj:GetAttribute("Current_Wave")
+		if waveAttr then return waveAttr end
+	end
+	return workspace:GetAttribute("Wave") or workspace:GetAttribute("Current_Wave") or 0
+end
+
+-- Auto Farm Waves - uses existing AutoFarm but ensures we're in waves mode
+task.spawn(function()
+	while true do
+		if getgenv().AutoFarmWaves then
+			if isWavesMode() then
+				if not AutoFarm._running then
+					AutoFarm:Start()
+				end
+			end
+		end
+		task.wait(2)
+	end
+end)
+
+-- Auto Vote/Start Waves loop
+task.spawn(function()
+	while true do
+		if getgenv().AutoStartVoteWaves then
+			pcall(function()
+				-- Vote for waves start when voting UI is visible
+				local waveVoteGui = PlayerGui.Interface:FindFirstChild("Wave_Vote") or PlayerGui.Interface:FindFirstChild("WaveVote")
+				local voteBtn = nil
+				if waveVoteGui and waveVoteGui.Visible then
+					voteBtn = waveVoteGui:FindFirstChild("Vote", true) or waveVoteGui:FindFirstChild("Start", true)
+				end
+				-- Also check for generic Vote Start billboard (as seen in screenshot)
+				if not voteBtn then
+					for _, v in ipairs(PlayerGui.Interface:GetDescendants()) do
+						if (v:IsA("TextButton") or v:IsA("ImageButton")) and v.Visible then
+							if string.find(v.Name:lower(), "vote") or (v:IsA("TextButton") and string.find(v.Text:lower(), "vote")) then
+								voteBtn = v
+								break
+							end
+						end
+					end
+				end
+				if voteBtn then
+					UseButton(voteBtn)
+				end
+				-- Send the remote vote
+				doWavesVote()
+			end)
+		end
+		task.wait(1)
+	end
+end)
+
+-- Auto Buy Spears loop
+task.spawn(function()
+	while true do
+		if getgenv().AutoBuySpears then
+			pcall(function()
+				if isWavesMode() or isLobby then
+					doWavesBuySpears()
+				end
+			end)
+		end
+		task.wait(10)
+	end
+end)
+
+-- Auto Upgrade Waves loop
+task.spawn(function()
+	while true do
+		if getgenv().AutoWavesUpgrade then
+			pcall(function()
+				local selectedUpgrades = Options.WavesUpgradesDropdown and Options.WavesUpgradesDropdown.Value
+				if not selectedUpgrades then return end
+				for upgName, isActive in pairs(selectedUpgrades) do
+					if isActive then
+						doWavesBuyUpgrade(upgName)
+						task.wait(0.3)
+					end
+				end
+			end)
+		end
+		task.wait(5)
+	end
+end)
+
+-- Auto Return to Lobby after waves
+local wavesReturnCounter = 0
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if getgenv().AutoReturnLobbyWaves then
+			pcall(function()
+				local wavesObj = workspace:FindFirstChild("Waves")
+				local finished = wavesObj and wavesObj:GetAttribute("Finished")
+				if finished then
+					local waveNum = getWaveNumber()
+					local targetWave = getgenv().ReturnAfterWaves or 40
+					if waveNum >= targetWave then
+						AutoFarm:Stop()
+						task.wait(0.5)
+						pcall(function() getRemote:InvokeServer("Functions", "Teleport", "Lobby") end)
+						task.wait(0.5)
+						TeleportService:Teleport(14916516914, lp)
+					end
+				end
+			end)
+		end
+	end
+end)
+
 -- ==========================================
--- WAVES TAB : Waves Upgrades (left)
+-- WAVES TAB : Upgrades
 -- ==========================================
 
-WavesUpgradesGroup:AddToggle("WavesUpgradeGearToggle", {
+WavesUpgradesGroup:AddToggle("AutoWavesUpgradeToggle", {
 	Text = "Upgrade Gear",
 	Default = false,
 })
-Toggles.WavesUpgradeGearToggle:OnChanged(function()
-	getgenv().WavesUpgradeGear = Toggles.WavesUpgradeGearToggle.Value
-	if getgenv().WavesUpgradeGear then
-		task.spawn(function()
-			while getgenv().WavesUpgradeGear do
-				pcall(function()
-					-- Exact same logic as existing AutoUpgrade: GET "Equipment","Upgrade",{all stats}
-					local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
-					if not ok or not liveData or type(liveData) ~= "table" then return end
-					local slotIndex = liveData.Current_Slot
-					local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
-					if not slotData then return end
-					local weapon = slotData.Weapon
-					local upgrades = slotData.Upgrades and slotData.Upgrades[weapon]
-					if not upgrades then return end
-					for upg, lvl in next, upgrades do
-						if lvl >= 15 then continue end
-						local success, result = pcall(function()
-							return getRemote:InvokeServer("Equipment", "Upgrade", {upg})
-						end)
-						if success and result then
-							Library:Notify({ Title = "Waves: Gear Upgraded", Description = string.gsub(upg, "_", " ") .. " Lv " .. tostring(lvl + 1), Time = 1.5 })
-							task.wait(0.5)
-						end
-					end
-				end)
-				task.wait(3)
-			end
-		end)
-	end
+Toggles.AutoWavesUpgradeToggle:OnChanged(function()
+	getgenv().AutoWavesUpgrade = Toggles.AutoWavesUpgradeToggle.Value
 end)
 
-WavesUpgradesGroup:AddToggle("WavesBuyBaseUpgradesToggle", {
+WavesUpgradesGroup:AddToggle("AutoBuyBaseUpgradesToggle", {
 	Text = "Buy Base Upgrades",
 	Default = false,
 })
-Toggles.WavesBuyBaseUpgradesToggle:OnChanged(function()
-	getgenv().WavesBuyBaseUpgrades = Toggles.WavesBuyBaseUpgradesToggle.Value
-	if getgenv().WavesBuyBaseUpgrades then
+Toggles.AutoBuyBaseUpgradesToggle:OnChanged(function()
+	getgenv().AutoBuyBaseUpgrades = Toggles.AutoBuyBaseUpgradesToggle.Value
+	if getgenv().AutoBuyBaseUpgrades then
 		task.spawn(function()
-			while getgenv().WavesBuyBaseUpgrades do
+			while getgenv().AutoBuyBaseUpgrades do
 				pcall(function()
-					-- Confirmed from log: GET "Equipment","Upgrade" with full stat list
-					getRemote:InvokeServer("Equipment", "Upgrade", {
-						"Crit_Chance",
-						"Blade_Durability",
-						"ODM_Damage",
-						"Crit_Damage",
-						"ODM_Speed",
-						"ODM_Control",
-						"ODM_Range",
-						"ODM_Gas"
-					})
-				end)
-				task.wait(3)
-			end
-		end)
-	end
-end)
-
-WavesUpgradesGroup:AddDropdown("WavesSelectUpgradesDropdown", {
-	Values = {"Max", "Refill", "Regen", "Replenish", "Revive"},
-	Default = {},
-	Multi = true,
-	Text = "Select Upgrades",
-})
-Options.WavesSelectUpgradesDropdown:OnChanged(function()
-	getgenv().WavesSelectedUpgrades = Options.WavesSelectUpgradesDropdown.Value or {}
-end)
-
-WavesUpgradesGroup:AddToggle("WavesAutoStartVoteToggle", {
-	Text = "Auto Start/Vote Waves",
-	Default = false,
-})
-Toggles.WavesAutoStartVoteToggle:OnChanged(function()
-	getgenv().WavesAutoStartVote = Toggles.WavesAutoStartVoteToggle.Value
-	if getgenv().WavesAutoStartVote then
-		task.spawn(function()
-			while getgenv().WavesAutoStartVote do
-				pcall(function()
-					-- Vote for wave start via the game's Vote button GUI
-					local waveGui = workspace:FindFirstChild("Unclimbable")
-						and workspace.Unclimbable:FindFirstChild("Objective")
-						and workspace.Unclimbable.Objective:FindFirstChild("Waves")
-					if waveGui then
-						local voteBtn = waveGui:FindFirstChild("VoteStart") or waveGui:FindFirstChild("Vote_Start") or waveGui:FindFirstChildWhichIsA("TextButton")
-						if voteBtn then UseButton(voteBtn) end
-					end
-					-- Also fire the update to keep the server aware
-					postRemote:FireServer("Waves", "Update")
-				end)
-				task.wait(3)
-			end
-		end)
-	end
-end)
-
-WavesUpgradesGroup:AddToggle("WavesReturnToLobbyToggle", {
-	Text = "Return to lobby after waves",
-	Default = false,
-})
-Toggles.WavesReturnToLobbyToggle:OnChanged(function()
-	getgenv().WavesReturnToLobby = Toggles.WavesReturnToLobbyToggle.Value
-end)
-
-WavesUpgradesGroup:AddSlider("WavesReturnAfterXSlider", {
-	Text = "Return after x waves",
-	Default = 40,
-	Min = 1,
-	Max = 100,
-	Rounding = 0,
-})
-Options.WavesReturnAfterXSlider:OnChanged(function()
-	getgenv().WavesReturnAfterX = Options.WavesReturnAfterXSlider.Value
-end)
-
--- ==========================================
--- WAVES TAB : Waves Misc (right)
--- ==========================================
-
-WavesMiscGroup:AddToggle("WavesAutoFarmToggle", {
-	Text = "Auto Farm Waves",
-	Default = false,
-})
-Toggles.WavesAutoFarmToggle:OnChanged(function()
-	getgenv().WavesAutoFarm = Toggles.WavesAutoFarmToggle.Value
-	if getgenv().WavesAutoFarm then
-		task.spawn(function()
-			local wavesCompleted = 0
-			while getgenv().WavesAutoFarm do
-				-- Wait for a wave to be active (Unclimbable.Objective.Waves exists in the map)
-				local wavesObj = workspace:FindFirstChild("Unclimbable")
-					and workspace.Unclimbable:FindFirstChild("Objective")
-					and workspace.Unclimbable.Objective:FindFirstChild("Waves")
-
-				if not wavesObj then
-					task.wait(2)
-					continue
-				end
-
-				-- Apply selected upgrades each loop tick
-				pcall(doWavesUpgrades)
-
-				-- Track wave count via workspace attribute (server sets this)
-				local currentWave = workspace:GetAttribute("Wave") or 0
-
-				-- Return to lobby after x waves
-				if getgenv().WavesReturnToLobby and currentWave >= getgenv().WavesReturnAfterX then
-					Library:Notify({ Title = "Waves", Description = "Returning to lobby after " .. currentWave .. " waves!", Time = 4 })
-					getgenv().WavesAutoFarm = false
-					Toggles.WavesAutoFarmToggle:SetValue(false)
-					task.spawn(function()
-						getRemote:InvokeServer("Functions", "Teleport", "Lobby")
-						task.wait(0.5)
-						TeleportService:Teleport(14916516914, lp)
-					end)
-					break
-				end
-
-				task.wait(1)
-			end
-		end)
-	end
-end)
-
-WavesMiscGroup:AddToggle("WavesBuySpears250kToggle", {
-	Text = "Buy Spears (250k)",
-	Default = false,
-})
-Toggles.WavesBuySpears250kToggle:OnChanged(function()
-	getgenv().WavesBuySpears = Toggles.WavesBuySpears250kToggle.Value
-	if getgenv().WavesBuySpears then
-		task.spawn(function()
-			while getgenv().WavesBuySpears do
-				pcall(function()
-					-- Confirmed from log: GET "Equipment","Weapon","Spears" switches weapon to spears
-					-- The 250k is the in-game cost shown in the Waves shop; we invoke the switch
-					local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
-					if not ok or not liveData or type(liveData) ~= "table" then return end
-					local slotIndex = liveData.Current_Slot
-					local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
-					if not slotData then return end
-					local gold = slotData.Currency and slotData.Currency.Gold or 0
-					if gold >= 250000 then
-						getRemote:InvokeServer("Equipment", "Weapon", "Spears")
-						Library:Notify({ Title = "Waves", Description = "Bought Spears!", Time = 2 })
+					if isWavesMode() then
+						-- Buy all base upgrade types
+						for _, upgName in ipairs({"Max", "Refill", "Regen", "Replenish", "Revive"}) do
+							getRemote:InvokeServer("Waves", "Upgrade", upgName)
+							task.wait(0.3)
+						end
 					end
 				end)
 				task.wait(5)
@@ -3003,44 +2911,67 @@ Toggles.WavesBuySpears250kToggle:OnChanged(function()
 	end
 end)
 
-WavesMiscGroup:AddToggle("WavesMiscAutoStartVoteToggle", {
+WavesUpgradesGroup:AddDropdown("WavesUpgradesDropdown", {
+	Values = WavesUpgradeOptions,
+	Default = {},
+	Multi = true,
+	Text = "Select Upgrades",
+})
+
+-- ==========================================
+-- WAVES TAB : Misc
+-- ==========================================
+
+WavesMiscGroup:AddToggle("AutoFarmWavesToggle", {
+	Text = "Auto Farm Waves",
+	Default = false,
+})
+Toggles.AutoFarmWavesToggle:OnChanged(function()
+	getgenv().AutoFarmWaves = Toggles.AutoFarmWavesToggle.Value
+	if getgenv().AutoFarmWaves then
+		if not Toggles.AutoKillToggle.Value then
+			Toggles.AutoKillToggle:SetValue(true)
+		end
+	else
+		if AutoFarm._running and not Toggles.AutoKillToggle.Value then
+			AutoFarm:Stop()
+		end
+	end
+end)
+
+WavesMiscGroup:AddToggle("AutoBuySpearsToggle", {
+	Text = "Buy Spears (250k)",
+	Default = false,
+})
+Toggles.AutoBuySpearsToggle:OnChanged(function()
+	getgenv().AutoBuySpears = Toggles.AutoBuySpearsToggle.Value
+end)
+
+WavesMiscGroup:AddToggle("AutoStartVoteWavesToggle", {
 	Text = "Auto Start/Vote Waves",
 	Default = false,
 })
-Toggles.WavesMiscAutoStartVoteToggle:OnChanged(function()
-	-- Mirror to the left-side toggle so both stay in sync
-	local v = Toggles.WavesMiscAutoStartVoteToggle.Value
-	getgenv().WavesAutoStartVote = v
-	if Toggles.WavesAutoStartVoteToggle.Value ~= v then
-		Toggles.WavesAutoStartVoteToggle:SetValue(v)
-	end
+Toggles.AutoStartVoteWavesToggle:OnChanged(function()
+	getgenv().AutoStartVoteWaves = Toggles.AutoStartVoteWavesToggle.Value
 end)
 
-WavesMiscGroup:AddToggle("WavesMiscReturnToLobbyToggle", {
+WavesMiscGroup:AddToggle("AutoReturnLobbyWavesToggle", {
 	Text = "Return to lobby after waves",
 	Default = false,
 })
-Toggles.WavesMiscReturnToLobbyToggle:OnChanged(function()
-	local v = Toggles.WavesMiscReturnToLobbyToggle.Value
-	getgenv().WavesReturnToLobby = v
-	if Toggles.WavesReturnToLobbyToggle.Value ~= v then
-		Toggles.WavesReturnToLobbyToggle:SetValue(v)
-	end
+Toggles.AutoReturnLobbyWavesToggle:OnChanged(function()
+	getgenv().AutoReturnLobbyWaves = Toggles.AutoReturnLobbyWavesToggle.Value
 end)
 
-WavesMiscGroup:AddSlider("WavesMiscReturnAfterXSlider", {
+WavesMiscGroup:AddSlider("ReturnAfterWavesSlider", {
 	Text = "Return after x waves",
 	Default = 40,
 	Min = 1,
 	Max = 100,
 	Rounding = 0,
 })
-Options.WavesMiscReturnAfterXSlider:OnChanged(function()
-	local v = Options.WavesMiscReturnAfterXSlider.Value
-	getgenv().WavesReturnAfterX = v
-	if Options.WavesReturnAfterXSlider.Value ~= v then
-		Options.WavesReturnAfterXSlider:SetValue(v)
-	end
+Options.ReturnAfterWavesSlider:OnChanged(function()
+	getgenv().ReturnAfterWaves = Options.ReturnAfterWavesSlider.Value
 end)
 
 -- ==========================================
