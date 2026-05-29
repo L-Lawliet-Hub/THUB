@@ -14,7 +14,7 @@ task.spawn(function()
 	end
 	local success, result = pcall(function()
 		local resp = request({
-			Url = "https://raw.githubusercontent.com/TitanicHub/Keys/main/premium_keys.txt",
+			Url = "https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/key.txt",
 			Method = "GET",
 		})
 		if resp and resp.Body then
