@@ -244,6 +244,22 @@ function AutoFarm:Start()
 			local char = lp.Character
 			local playerReady = char and (char:GetAttribute("Shifter") or (char:FindFirstChild("Main") and char.Main:FindFirstChild("W")))
 			local mapReady = workspace:FindFirstChild("Unclimbable") ~= nil
+			-- Waves mode: no Titans folder; ready when Objective.Waves exists and has enemies
+			local isWavesMode = mapReady
+				and workspace.Unclimbable:FindFirstChild("Objective")
+				and workspace.Unclimbable.Objective:FindFirstChild("Waves") ~= nil
+			if isWavesMode then
+				-- In Waves, enemies live under workspace (not workspace.Titans)
+				-- Check that at least one Hitboxes.Hit.Nape exists anywhere in workspace
+				local hasEnemy = false
+				for _, v in ipairs(workspace:GetDescendants()) do
+					if v.Name == "Nape" and v.Parent and v.Parent.Name == "Hit" then
+						hasEnemy = true
+						break
+					end
+				end
+				return playerReady and mapReady and (hasEnemy or workspace.Unclimbable.Objective.Waves ~= nil)
+			end
 			local titans = workspace:FindFirstChild("Titans")
 			local titansReady = false
 			if titans then
@@ -323,9 +339,29 @@ function AutoFarm:Start()
 			local slotData = slotIndex and mapData and mapData.Slots and mapData.Slots[slotIndex]
 
 			if not slotData then
-				UpdateStatus("Waiting for data...")
-				task.wait(1)
-				continue
+				-- Waves mode: mapData.Slots doesn't exist; build a minimal slotData from live server data
+				local isWavesMode = workspace:FindFirstChild("Unclimbable")
+					and workspace.Unclimbable:FindFirstChild("Objective")
+					and workspace.Unclimbable.Objective:FindFirstChild("Waves") ~= nil
+				if isWavesMode then
+					local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
+					if ok and liveData and type(liveData) == "table" then
+						local liveSlot = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
+						if liveSlot then
+							slotData = liveSlot
+							-- Also keep mapData.Slots updated so later checks work
+							if mapData then
+								mapData.Slots = mapData.Slots or {}
+								mapData.Slots[slotIndex] = liveSlot
+							end
+						end
+					end
+				end
+				if not slotData then
+					UpdateStatus("Waiting for data...")
+					task.wait(1)
+					continue
+				end
 			end
 
 			-- Die at Streak check
@@ -376,14 +412,15 @@ function AutoFarm:Start()
 			local ws_ObjectiveFolder = workspace:FindFirstChild("Unclimbable") and workspace.Unclimbable:FindFirstChild("Objective")
 			local rs_ObjectiveFolder = ReplicatedStorage:FindFirstChild("Objectives")
 			local mapType = workspace:GetAttribute("Type") or (mapData and mapData.Map and mapData.Map.Type)
+			local isWavesMode = ws_ObjectiveFolder and ws_ObjectiveFolder:FindFirstChild("Waves") ~= nil
 
-			local isArmoredRaid = ws_ObjectiveFolder:FindFirstChild("Armored_Boss")
-			local isFemaleRaid = rs_ObjectiveFolder:FindFirstChild("Defeat_Annie")
-			local femaleExists = ws_ObjectiveFolder:FindFirstChild("Female_Boss")
-			local attackExists = ws_ObjectiveFolder:FindFirstChild("Attack_Boss")
+			local isArmoredRaid = ws_ObjectiveFolder and ws_ObjectiveFolder:FindFirstChild("Armored_Boss")
+			local isFemaleRaid = rs_ObjectiveFolder and rs_ObjectiveFolder:FindFirstChild("Defeat_Annie")
+			local femaleExists = ws_ObjectiveFolder and ws_ObjectiveFolder:FindFirstChild("Female_Boss")
+			local attackExists = ws_ObjectiveFolder and ws_ObjectiveFolder:FindFirstChild("Attack_Boss")
 			local armoredTitan = titansFolder and titansFolder:FindFirstChild("Armored_Titan")
 			local hasReinerObjective = armoredTitan and armoredTitan:GetAttribute("State")
-			local isColossalRaid = rs_ObjectiveFolder:FindFirstChild("Defeat_Bertholdt") or ws_ObjectiveFolder:FindFirstChild("Colossal_Boss")
+			local isColossalRaid = (rs_ObjectiveFolder and rs_ObjectiveFolder:FindFirstChild("Defeat_Bertholdt")) or (ws_ObjectiveFolder and ws_ObjectiveFolder:FindFirstChild("Colossal_Boss"))
 
 			if isFemaleRaid and not femaleExists and not attackExists then
 				task.wait(0.05)
@@ -511,14 +548,26 @@ function AutoFarm:Start()
 			if now >= nextTitanCacheUpdate then
 				nextTitanCacheUpdate = now + 0.1
 				table.clear(validNapes)
-				for _, v in ipairs(titansFolder:GetChildren()) do
-					if v:GetAttribute("Killed") then continue end
-					local hit = v:FindFirstChild("Hitboxes") and v.Hitboxes:FindFirstChild("Hit")
-					if hit then
-						local fake = v:FindFirstChild("Fake")
-						if fake and fake:FindFirstChild("Collision") and not fake.Collision.CanCollide then continue end
-						local nape = hit:FindFirstChild("Nape")
-						if nape then table.insert(validNapes, nape) end
+				if isWavesMode or not titansFolder then
+					-- Waves: enemies are not under workspace.Titans; scan workspace for any Hitboxes.Hit.Nape
+					for _, v in ipairs(workspace:GetDescendants()) do
+						if v.Name == "Nape" and v.Parent and v.Parent.Name == "Hit" then
+							local model = v.Parent.Parent.Parent  -- Hitboxes -> model root
+							if model and not model:GetAttribute("Dead") and not model:GetAttribute("Killed") then
+								table.insert(validNapes, v)
+							end
+						end
+					end
+				else
+					for _, v in ipairs(titansFolder:GetChildren()) do
+						if v:GetAttribute("Killed") then continue end
+						local hit = v:FindFirstChild("Hitboxes") and v.Hitboxes:FindFirstChild("Hit")
+						if hit then
+							local fake = v:FindFirstChild("Fake")
+							if fake and fake:FindFirstChild("Collision") and not fake.Collision.CanCollide then continue end
+							local nape = hit:FindFirstChild("Nape")
+							if nape then table.insert(validNapes, nape) end
+						end
 					end
 				end
 			end
