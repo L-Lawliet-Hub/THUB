@@ -3,7 +3,7 @@
 -- KEY SYSTEM (PREMIUM)
 -- ==========================================
 
-local PREMIUM_KEY = "KK" -- Apna key yahan enter karo
+local PREMIUM_KEY = "" -- Apna key yahan enter karo
 
 local isPremium = false
 
