@@ -77,11 +77,11 @@ local familyRaritiesOptions = {
 }
 
 -- Config system for persistent dropdown state
-if not isfolder("./THUB1") then makefolder("./THUB1") end
-if not isfolder("./THUB1/aotr") then makefolder("./THUB1/aotr") end
+if not isfolder("./TH") then makefolder("./TH") end
+if not isfolder("./TH/aotr") then makefolder("./TH/aotr") end
 
-local ConfigFile = "./THUB1/aotr/dropdown_config.json"
-local returnCounterPath = "./THUB1/aotr/return_lobby_counter.txt"
+local ConfigFile = "./TH/aotr/dropdown_config.json"
+local returnCounterPath = "./TH/aotr/return_lobby_counter.txt"
 local HttpService = game:GetService("HttpService")
 
 local function LoadConfig()
@@ -136,15 +136,15 @@ end
 -- ==========================================
 
 local function SaveSessionStats()
-	writefile("./THUB1/aotr/s_games.txt",     tostring(sessionStats.gamesPlayed))
-	writefile("./THUB1/aotr/s_gold.txt",      tostring(sessionStats.totalGold))
-	writefile("./THUB1/aotr/s_gems.txt",      tostring(sessionStats.totalGems))
-	writefile("./THUB1/aotr/s_xp.txt",        tostring(sessionStats.totalXP))
-	writefile("./THUB1/aotr/s_mythicals.txt", tostring(sessionStats.mythicalDrops))
-	writefile("./THUB1/aotr/s_crashes.txt",   tostring(sessionStats.crashes))
+	writefile("./TH/aotr/s_games.txt",     tostring(sessionStats.gamesPlayed))
+	writefile("./TH/aotr/s_gold.txt",      tostring(sessionStats.totalGold))
+	writefile("./TH/aotr/s_gems.txt",      tostring(sessionStats.totalGems))
+	writefile("./TH/aotr/s_xp.txt",        tostring(sessionStats.totalXP))
+	writefile("./TH/aotr/s_mythicals.txt", tostring(sessionStats.mythicalDrops))
+	writefile("./TH/aotr/s_crashes.txt",   tostring(sessionStats.crashes))
 	-- Save elapsed time so timer pauses when script is off
 	local elapsed = os.time() - sessionStats.startTime
-	writefile("./THUB1/aotr/s_elapsed.txt",   tostring(elapsed))
+	writefile("./TH/aotr/s_elapsed.txt",   tostring(elapsed))
 end
 
 local function LoadSessionStats()
@@ -155,16 +155,16 @@ local function LoadSessionStats()
 		return default
 	end
 	-- Resume timer from saved elapsed so time doesnt count when script is off
-	local savedElapsed = rf("./THUB1/aotr/s_elapsed.txt", 0)
+	local savedElapsed = rf("./TH/aotr/s_elapsed.txt", 0)
 	return {
 		startTime     = os.time() - savedElapsed,
-		gamesPlayed   = rf("./THUB1/aotr/s_games.txt",     0),
-		totalGold     = rf("./THUB1/aotr/s_gold.txt",      0),
-		totalGems     = rf("./THUB1/aotr/s_gems.txt",      0),
-		totalXP       = rf("./THUB1/aotr/s_xp.txt",        0),
+		gamesPlayed   = rf("./TH/aotr/s_games.txt",     0),
+		totalGold     = rf("./TH/aotr/s_gold.txt",      0),
+		totalGems     = rf("./TH/aotr/s_gems.txt",      0),
+		totalXP       = rf("./TH/aotr/s_xp.txt",        0),
 		totalKills    = 0,
-		mythicalDrops = rf("./THUB1/aotr/s_mythicals.txt", 0),
-		crashes       = rf("./THUB1/aotr/s_crashes.txt",   0),
+		mythicalDrops = rf("./TH/aotr/s_mythicals.txt", 0),
+		crashes       = rf("./TH/aotr/s_crashes.txt",   0),
 	}
 end
 
@@ -885,7 +885,7 @@ local data = {
 	Special = {}
 }
 
-local path = "./THUB1/aotr/games_played.txt"
+local path = "./TH/aotr/games_played.txt"
 if not isfile(path) then writefile(path, "0") end
 local gamesPlayed = tonumber(readfile(path))
 
@@ -903,7 +903,7 @@ if rewards then
 		getgenv()._missionStartTime = nil
 
 		gamesPlayed = gamesPlayed + 1
-		writefile("./THUB1/aotr/games_played.txt", tostring(gamesPlayed))
+		writefile("./TH/aotr/games_played.txt", tostring(gamesPlayed))
 
 		-- Update session stats
 		sessionStats.gamesPlayed = sessionStats.gamesPlayed + 1
@@ -2157,7 +2157,7 @@ SessionGroup:AddButton({
 		sessionStats.totalKills   = 0
 		sessionStats.mythicalDrops = 0
 		sessionStats.crashes      = 0
-		writefile("./THUB1/aotr/s_elapsed.txt", "0") -- reset elapsed too
+		writefile("./TH/aotr/s_elapsed.txt", "0") -- reset elapsed too
 		SaveSessionStats()
 		Library:Notify({ Title = "Stats", Description = "Session reset!", Time = 2 })
 	end,
@@ -2217,8 +2217,8 @@ Library.ToggleKeybind = Options.MenuKeybind
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
 
-ThemeManager:SetFolder("THUB1/aotr")
-SaveManager:SetFolder("THUB1/aotr")
+ThemeManager:SetFolder("TH/aotr")
+SaveManager:SetFolder("TH/aotr")
 
 ThemeManager:SetDefaultTheme({
 	FontColor       = Color3.fromRGB(225, 225, 225),
