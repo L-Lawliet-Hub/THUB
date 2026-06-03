@@ -1548,22 +1548,27 @@ local function handleWeaponReload()
 	if weaponType == "Blades" then
 		local current = getBladeCount() or 0
 
-		-- Reserves empty → refill at gas tank
-		if current == 0 and autoRefillEnabled then
-			if os.clock() - lastRefillTime < 1.5 then return end
+		-- Blade reload + refill: tabhi jab count == 0 (blades na ho / 0/3)
+		if current == 0 then
 			isReloading = true
 			lastReloadTime = os.clock()
-			lastRefillTime = os.clock()
-			pcall(function() postRemote:FireServer("Attacks", "Reload") end)
-			task.delay(1.5, function() isReloading = false end)
-			return
-		end
 
-		-- Equip blades
-		isReloading = true
-		lastReloadTime = os.clock()
-		pcall(function() getRemote:InvokeServer("Blades", "Reload") end)
-		task.delay(0.5, function() isReloading = false end)
+			-- Blade reload: jab blades na ho
+			pcall(function() getRemote:InvokeServer("Blades", "Reload") end)
+
+			-- Refill: jab 0/3 dikhaye (autoRefillEnabled ho toh)
+			if autoRefillEnabled then
+				if os.clock() - lastRefillTime < 1.5 then
+					task.delay(0.5, function() isReloading = false end)
+					return
+				end
+				lastRefillTime = os.clock()
+				pcall(function() postRemote:FireServer("Attacks", "Reload") end)
+				task.delay(1.5, function() isReloading = false end)
+			else
+				task.delay(0.5, function() isReloading = false end)
+			end
+		end
 
 	elseif weaponType == "Spears" then
 		local frame7 = getWeaponHUDFrame()
