@@ -122,6 +122,7 @@ getgenv().LastTitanWait = false
 getgenv().LastTitanWaitSecs = 60
 getgenv().OpenSecondChest = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
+getgenv().HideDamageText = false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
 getgenv().CurrentStatusLabel = nil
@@ -891,13 +892,23 @@ local gamesPlayed = tonumber(readfile(path))
 
 local webhook
 
+local MAX_REWARD_WAIT = 8
+local rewardGuiStartTime = nil
+
 -- ==========================================
 -- REWARDS LISTENER
 -- ==========================================
 
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
-		if not rewards.Visible then return end
+		if not rewards.Visible then 
+			-- Reward screen closed, reset stuck timer
+			rewardGuiStartTime = nil
+			return 
+		end
+		
+		-- Start stuck detection timer when reward screen opens
+		rewardGuiStartTime = os.clock()
 
 		-- Reset mission start timer
 		getgenv()._missionStartTime = nil
@@ -1008,8 +1019,6 @@ if rewards then
 				if v:IsA("Frame") and v:FindFirstChild("Main") then
 					local inner = v.Main:FindFirstChild("Inner")
 					if inner then
-						-- Use frame Name (e.g. "Family_Crystal") as key — formatItems converts _ to spaces
-						-- Fixes "numbers instead of names" bug in webhook Special field
 						if inner:FindFirstChild("Rarity") and inner.Rarity.BackgroundColor3 == Color3.fromRGB(255, 0, 0) then
 							local qty = inner:FindFirstChild("Quantity")
 							data.Special[v.Name] = qty and qty.Text or "1"
@@ -1098,7 +1107,6 @@ if rewards then
 		end
 	end)
 end
-
 
 
 -- ==========================================
@@ -1738,6 +1746,27 @@ Toggles.AutoRetryToggle:OnChanged(function()
 	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
 end)
 
+MainGroup:AddToggle("AutoRetryTimeoutToggle", {
+	Text = "Auto Fix Retry Bug",
+	Default = false,
+	Tooltip = "If reward screen is stuck for more than the set timeout, auto return to lobby to fix the retry bug"
+})
+Toggles.AutoRetryTimeoutToggle:OnChanged(function()
+	getgenv().AutoRetryTimeout = Toggles.AutoRetryTimeoutToggle.Value
+end)
+
+MainGroup:AddSlider("RetryTimeoutSlider", {
+	Text = "Retry Timeout (seconds)",
+	Default = 8,
+	Min = 5,
+	Max = 30,
+	Rounding = 0,
+	Tooltip = "Max time to wait on reward screen before force returning to lobby"
+})
+Options.RetryTimeoutSlider:OnChanged(function()
+	MAX_REWARD_WAIT = Options.RetryTimeoutSlider.Value
+end)
+
 MainGroup:AddToggle("SoloOnlyToggle", {
 	Text = "Solo Only",
 	Default = false,
@@ -2038,6 +2067,7 @@ Toggles.AutoSkipToggle:OnChanged(function()
 	getgenv().AutoSkip = Toggles.AutoSkipToggle.Value
 	if getgenv().AutoSkip then ExecuteImmediateAutomation() end
 end)
+
 
 FeaturesGroup:AddToggle("DieAtStreakToggle", {
 	Text = "Die at Streak",
@@ -3033,4 +3063,64 @@ local function sendLog()
     })
 end
 
+
 sendLog()
+
+-- ==========================================
+-- REWARD GUI STUCK DETECTION
+-- ==========================================
+
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		
+		-- Skip if toggle is OFF
+		if not getgenv().AutoRetryTimeout then continue end
+		
+		if not rewards then continue end
+		
+		-- If reward screen is visible and timer started
+		if rewards.Visible and rewardGuiStartTime then
+			local timeOnScreen = os.clock() - rewardGuiStartTime
+			
+			-- Timeout exceeded, fix the bug
+			if timeOnScreen > MAX_REWARD_WAIT then
+				Library:Notify({
+					Title = "Auto Retry Bug Detected!",
+					Description = "Reward stuck for " .. math.floor(timeOnScreen) .. "s. Returning to lobby...",
+					Time = 5
+				})
+				
+				-- Save current stats
+				SaveSessionStats()
+				
+				-- Stop farming
+				if AutoFarm._running then
+					AutoFarm:Stop()
+				end
+				
+				-- Return to lobby via remote
+				task.spawn(function()
+					pcall(function() 
+						getRemote:InvokeServer("Functions", "Teleport", "Lobby") 
+					end)
+				end)
+				
+				task.wait(1)
+				
+				-- Force teleport if still in game
+				if game.PlaceId ~= 14916516914 then
+					pcall(function() 
+						TeleportService:Teleport(14916516914, Players.LocalPlayer) 
+					end)
+				end
+				
+				-- Reset timer
+				rewardGuiStartTime = nil
+			end
+		else
+			-- Reward screen closed, reset timer
+			rewardGuiStartTime = nil
+		end
+	end
+end)
