@@ -901,9 +901,9 @@ local rewardGuiTimeout = false
 
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
-		if not rewards.Visible then return end
-
-      rewardGuiStartTime = nil
+		if not rewards.Visible then 
+			-- Reward screen closed, reset timer
+			rewardGuiStartTime = nil
 			return 
 		end
 		
@@ -911,7 +911,6 @@ if rewards then
 		rewardGuiStartTime = os.clock()
 		UpdateStatus("Reward screen open...")
 
-	
 		-- Reset mission start timer
 		getgenv()._missionStartTime = nil
 
@@ -1021,8 +1020,6 @@ if rewards then
 				if v:IsA("Frame") and v:FindFirstChild("Main") then
 					local inner = v.Main:FindFirstChild("Inner")
 					if inner then
-						-- Use frame Name (e.g. "Family_Crystal") as key — formatItems converts _ to spaces
-						-- Fixes "numbers instead of names" bug in webhook Special field
 						if inner:FindFirstChild("Rarity") and inner.Rarity.BackgroundColor3 == Color3.fromRGB(255, 0, 0) then
 							local qty = inner:FindFirstChild("Quantity")
 							data.Special[v.Name] = qty and qty.Text or "1"
