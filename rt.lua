@@ -122,6 +122,7 @@ getgenv().LastTitanWait = false
 getgenv().LastTitanWaitSecs = 60
 getgenv().OpenSecondChest = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
+getgenv().HideDamageText = false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
 getgenv().CurrentStatusLabel = nil
@@ -3079,6 +3080,7 @@ task.spawn(function()
     while true do
         if getgenv().HideDamageText then
             pcall(function()
+                -- Hide all BillboardGuis on player character
                 if lp.Character then
                     for _, v in ipairs(lp.Character:GetDescendants()) do
                         if v:IsA("BillboardGui") then
@@ -3086,11 +3088,19 @@ task.spawn(function()
                         end
                     end
                 end
+                -- Hide damage numbers floating in workspace
+                for _, v in ipairs(workspace:GetDescendants()) do
+                    if v:IsA("BillboardGui") and v.Enabled then
+                        v.Enabled = false
+                    end
+                end
             end)
         end
-        task.wait(1)
+        task.wait(0.5)
     end
 end)
+
+sendLog()
 sendLog()
 
 -- ==========================================
