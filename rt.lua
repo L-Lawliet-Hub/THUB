@@ -2067,72 +2067,15 @@ Toggles.AutoSkipToggle:OnChanged(function()
 	if getgenv().AutoSkip then ExecuteImmediateAutomation() end
 end)
 
--- ==========================================
--- HIDE DAMAGE TEXT (GUI TOGGLE)
--- ==========================================
-
-getgenv().HideDamageText = false
-
-local function toggleDamageText(enabled)
-    getgenv().HideDamageText = enabled
-    
-    if enabled then
-        task.spawn(function()
-            while getgenv().HideDamageText do
-                pcall(function()
-                    -- Hide damage from local player
-                    if lp.Character then
-                        for _, obj in ipairs(lp.Character:GetDescendants()) do
-                            if obj:IsA("BillboardGui") then
-                                obj.Enabled = false
-                            end
-                        end
-                    end
-                    
-                    -- Hide damage from rig
-                    local rig = lp.Character and lp.Character:FindFirstChild("Rig_" .. lp.Name)
-                    if rig then
-                        for _, obj in ipairs(rig:GetDescendants()) do
-                            if obj:IsA("BillboardGui") then
-                                obj.Enabled = false
-                            end
-                        end
-                    end
-                    
-                    -- Hide damage from workspace (floating numbers)
-                    for _, obj in ipairs(workspace:GetDescendants()) do
-                        if obj:IsA("BillboardGui") and 
-                           (obj.Name:find("Damage") or 
-                            obj.Name:find("dmg") or 
-                            obj.Name:find("Hit")) then
-                            obj.Enabled = false
-                        end
-                    end
-                end)
-                task.wait(1)
-            end
-            
-            -- Re-enable when toggled off
-            if lp.Character then
-                for _, obj in ipairs(lp.Character:GetDescendants()) do
-                    if obj:IsA("BillboardGui") then
-                        obj.Enabled = true
-                    end
-                end
-            end
-        end)
-    end
-end
-
--- GUI mein add karo (FeaturesGroup ke andar ya Extras mein)
 FeaturesGroup:AddToggle("HideDamageToggle", {
     Text = "Hide Damage Numbers",
     Default = false,
-    Tooltip = "Hide all damage text and numbers for better FPS"
+    Tooltip = "Hide all damage text for better visibility"
 })
 Toggles.HideDamageToggle:OnChanged(function()
-    toggleDamageText(Toggles.HideDamageToggle.Value)
+    getgenv().HideDamageText = Toggles.HideDamageToggle.Value
 end)
+
 
 FeaturesGroup:AddToggle("DieAtStreakToggle", {
 	Text = "Die at Streak",
@@ -3128,6 +3071,26 @@ local function sendLog()
     })
 end
 
+-- ==========================================
+-- HIDE DAMAGE TEXT
+-- ==========================================
+
+task.spawn(function()
+    while true do
+        if getgenv().HideDamageText then
+            pcall(function()
+                if lp.Character then
+                    for _, v in ipairs(lp.Character:GetDescendants()) do
+                        if v:IsA("BillboardGui") then
+                            v.Enabled = false
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(1)
+    end
+end)
 sendLog()
 
 -- ==========================================
