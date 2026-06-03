@@ -891,25 +891,13 @@ local gamesPlayed = tonumber(readfile(path))
 
 local webhook
 
-local MAX_REWARD_WAIT = 8 -- Seconds before force return
-local rewardGuiStartTime = nil
-local rewardGuiTimeout = false
-
 -- ==========================================
 -- REWARDS LISTENER
 -- ==========================================
 
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
-		if not rewards.Visible then 
-			-- Reward screen closed, reset timer
-			rewardGuiStartTime = nil
-			return 
-		end
-		
-		-- Start timer when reward appears
-		rewardGuiStartTime = os.clock()
-		UpdateStatus("Reward screen open...")
+		if not rewards.Visible then return end
 
 		-- Reset mission start timer
 		getgenv()._missionStartTime = nil
@@ -1020,6 +1008,8 @@ if rewards then
 				if v:IsA("Frame") and v:FindFirstChild("Main") then
 					local inner = v.Main:FindFirstChild("Inner")
 					if inner then
+						-- Use frame Name (e.g. "Family_Crystal") as key — formatItems converts _ to spaces
+						-- Fixes "numbers instead of names" bug in webhook Special field
 						if inner:FindFirstChild("Rarity") and inner.Rarity.BackgroundColor3 == Color3.fromRGB(255, 0, 0) then
 							local qty = inner:FindFirstChild("Quantity")
 							data.Special[v.Name] = qty and qty.Text or "1"
@@ -1748,14 +1738,22 @@ Toggles.AutoRetryToggle:OnChanged(function()
 	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
 end)
 
--- AutoRetry toggle ke baad ye add karo
+MainGroup:AddToggle("AutoRetryTimeoutToggle", {
+	Text = "Auto Fix Retry Bug",
+	Default = false,
+	Tooltip = "If reward screen is stuck for more than the set timeout, auto return to lobby to fix the retry bug"
+})
+Toggles.AutoRetryTimeoutToggle:OnChanged(function()
+	getgenv().AutoRetryTimeout = Toggles.AutoRetryTimeoutToggle.Value
+end)
+
 MainGroup:AddSlider("RetryTimeoutSlider", {
 	Text = "Retry Timeout (seconds)",
 	Default = 8,
 	Min = 5,
 	Max = 30,
 	Rounding = 0,
-	Tooltip = "Kitni der baad lobby return kare agar reward stuck ho"
+	Tooltip = "Max time to wait on reward screen before force returning to lobby"
 })
 Options.RetryTimeoutSlider:OnChanged(function()
 	MAX_REWARD_WAIT = Options.RetryTimeoutSlider.Value
@@ -3066,29 +3064,32 @@ task.spawn(function()
 	while true do
 		task.wait(0.5)
 		
+		-- Skip if toggle is OFF
+		if not getgenv().AutoRetryTimeout then continue end
+		
 		if not rewards then continue end
 		
-		-- Agar reward screen visible hai
+		-- If reward screen is visible and timer started
 		if rewards.Visible and rewardGuiStartTime then
 			local timeOnScreen = os.clock() - rewardGuiStartTime
 			
-			-- 8 seconds se zyada ho gaya to bugged hai
+			-- Timeout exceeded, fix the bug
 			if timeOnScreen > MAX_REWARD_WAIT then
 				Library:Notify({
-					Title = "⚠️ Auto Retry Bug Detected!",
+					Title = "Auto Retry Bug Detected!",
 					Description = "Reward stuck for " .. math.floor(timeOnScreen) .. "s. Returning to lobby...",
 					Time = 5
 				})
 				
-				-- Stats save karo
+				-- Save current stats
 				SaveSessionStats()
 				
-				-- Farm stop karo
+				-- Stop farming
 				if AutoFarm._running then
 					AutoFarm:Stop()
 				end
 				
-				-- Lobby return
+				-- Return to lobby via remote
 				task.spawn(function()
 					pcall(function() 
 						getRemote:InvokeServer("Functions", "Teleport", "Lobby") 
@@ -3097,18 +3098,18 @@ task.spawn(function()
 				
 				task.wait(1)
 				
-				-- Agar abhi bhi game mein hai to force teleport
+				-- Force teleport if still in game
 				if game.PlaceId ~= 14916516914 then
 					pcall(function() 
 						TeleportService:Teleport(14916516914, Players.LocalPlayer) 
 					end)
 				end
 				
-				-- Timer reset
+				-- Reset timer
 				rewardGuiStartTime = nil
 			end
 		else
-			-- Reward screen closed, timer reset
+			-- Reward screen closed, reset timer
 			rewardGuiStartTime = nil
 		end
 	end
