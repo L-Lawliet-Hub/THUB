@@ -1099,38 +1099,7 @@ if rewards then
 	end)
 end
 
--- Separate chest handler
-local chestsGui = INTERFACE:FindFirstChild("Chests")
-if chestsGui then
-	chestsGui:GetPropertyChangedSignal("Visible"):Connect(function()
-		if not chestsGui.Visible then return end
-		if not getgenv().AutoChest then return end
-		
-		task.wait(0.3)
-		
-		local free = chestsGui:FindFirstChild("Free")
-		local premium = chestsGui:FindFirstChild("Premium")
-		local finish = chestsGui:FindFirstChild("Finish")
 
-		if free and free.Visible then
-			UseButton(free)
-			task.wait(1)
-		end
-
-		if getgenv().OpenSecondChest and premium and premium.Visible then
-			local title = premium:FindFirstChild("Title")
-			if title and not string.find(title.Text, "(0)") then
-				UseButton(premium)
-				task.wait(1)
-			end
-		end
-
-		finish = chestsGui:FindFirstChild("Finish")
-		if finish and finish.Visible then
-			UseButton(finish)
-		end
-	end)
-end
 
 -- ==========================================
 -- PERKS & TALENTS DATA
