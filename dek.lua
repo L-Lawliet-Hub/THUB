@@ -1374,7 +1374,7 @@ local function ExecuteImmediateAutomation()
 				and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
 				and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
 			if retryBtn then
-				task.wait(1)
+				task.wait(0.8)
 				UseButton(retryBtn)
 			end
 		end
@@ -1548,26 +1548,23 @@ local function handleWeaponReload()
 	if weaponType == "Blades" then
 		local current = getBladeCount() or 0
 
-		-- Blade reload + refill: tabhi jab count == 0 (blades na ho / 0/3)
-		if current == 0 then
+		-- Refill: jab 0/3 (sets khatam)
+		if current == 0 and autoRefillEnabled then
+			if os.clock() - lastRefillTime < 1.5 then return end
 			isReloading = true
 			lastReloadTime = os.clock()
+			lastRefillTime = os.clock()
+			pcall(function() postRemote:FireServer("Attacks", "Reload") end)
+			task.delay(1.5, function() isReloading = false end)
+			return
+		end
 
-			-- Blade reload: jab blades na ho
+		-- Blade reload: jab sets available hain (current > 0), blade equip karo
+		if current > 0 then
+			isReloading = true
+			lastReloadTime = os.clock()
 			pcall(function() getRemote:InvokeServer("Blades", "Reload") end)
-
-			-- Refill: jab 0/3 dikhaye (autoRefillEnabled ho toh)
-			if autoRefillEnabled then
-				if os.clock() - lastRefillTime < 1.5 then
-					task.delay(0.5, function() isReloading = false end)
-					return
-				end
-				lastRefillTime = os.clock()
-				pcall(function() postRemote:FireServer("Attacks", "Reload") end)
-				task.delay(1.5, function() isReloading = false end)
-			else
-				task.delay(0.5, function() isReloading = false end)
-			end
+			task.delay(0.5, function() isReloading = false end)
 		end
 
 	elseif weaponType == "Spears" then
