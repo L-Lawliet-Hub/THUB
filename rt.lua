@@ -2068,15 +2068,6 @@ Toggles.AutoSkipToggle:OnChanged(function()
 	if getgenv().AutoSkip then ExecuteImmediateAutomation() end
 end)
 
-FeaturesGroup:AddToggle("HideDamageToggle", {
-    Text = "Hide Damage Numbers",
-    Default = false,
-    Tooltip = "Hide all damage text for better visibility"
-})
-Toggles.HideDamageToggle:OnChanged(function()
-    getgenv().HideDamageText = Toggles.HideDamageToggle.Value
-end)
-
 
 FeaturesGroup:AddToggle("DieAtStreakToggle", {
 	Text = "Die at Streak",
@@ -3072,35 +3063,7 @@ local function sendLog()
     })
 end
 
--- ==========================================
--- HIDE DAMAGE TEXT
--- ==========================================
 
-task.spawn(function()
-    while true do
-        if getgenv().HideDamageText then
-            pcall(function()
-                -- Hide all BillboardGuis on player character
-                if lp.Character then
-                    for _, v in ipairs(lp.Character:GetDescendants()) do
-                        if v:IsA("BillboardGui") then
-                            v.Enabled = false
-                        end
-                    end
-                end
-                -- Hide damage numbers floating in workspace
-                for _, v in ipairs(workspace:GetDescendants()) do
-                    if v:IsA("BillboardGui") and v.Enabled then
-                        v.Enabled = false
-                    end
-                end
-            end)
-        end
-        task.wait(0.5)
-    end
-end)
-
-sendLog()
 sendLog()
 
 -- ==========================================
