@@ -170,6 +170,26 @@ end
 
 sessionStats = LoadSessionStats()
 
+-- Weapon & Slot Tracking
+sessionStats.weapon = "Unknown"
+sessionStats.slot = "Unknown"
+
+task.spawn(function()
+    while not Library.Unloaded do
+        pcall(function()
+            local slotIndex = lp:GetAttribute("Slot")
+            if slotIndex then
+                sessionStats.slot = slotIndex
+                local slotData = mapData and mapData.Slots and mapData.Slots[slotIndex]
+                if slotData then
+                    sessionStats.weapon = slotData.Weapon or "Unknown"
+                end
+            end
+        end)
+        task.wait(1)
+    end
+end)
+
 local function getSessionTime()
 	local elapsed = os.time() - sessionStats.startTime
 	local hours = math.floor(elapsed / 3600)
@@ -2904,6 +2924,8 @@ end)
 
 local labelSessionTime = SessionGroup:AddLabel("Session Time: 00:00:00")
 local labelGames       = SessionGroup:AddLabel("Games Played: 0")
+local labelWeapon = SessionGroup:AddLabel("Weapon: Unknown")
+local labelSlot = SessionGroup:AddLabel("Slot: Unknown")
 local labelGold        = SessionGroup:AddLabel("Total Gold: 0")
 local labelGems        = SessionGroup:AddLabel("Total Gems: 0")
 local labelXP          = SessionGroup:AddLabel("Total XP: 0")
@@ -2951,6 +2973,8 @@ task.spawn(function()
 		pcall(function()
 			labelSessionTime:SetText("Session Time: "  .. getSessionTime())
 			labelGames:SetText("Games Played: "        .. sessionStats.gamesPlayed)
+			labelWeapon:SetText("Weapon: " .. sessionStats.weapon)
+            labelSlot:SetText("Slot: " .. sessionStats.slot)
 			labelGold:SetText("Total Gold: "           .. sessionStats.totalGold)
 			labelGems:SetText("Total Gems: "           .. sessionStats.totalGems)
 			labelXP:SetText("Total XP: "               .. sessionStats.totalXP)
