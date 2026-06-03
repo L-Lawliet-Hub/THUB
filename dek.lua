@@ -1373,10 +1373,9 @@ local function ExecuteImmediateAutomation()
 				and rewardsGui.Main.Info:FindFirstChild("Main")
 				and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
 				and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
-			if retryBtn then
-				task.wait(0.8)
-				UseButton(retryBtn)
-			end
+			if retryBtn then 
+        task.wait(0.8)
+        UseButton(retryBtn) end
 		end
 	end
 end
@@ -1534,7 +1533,15 @@ local function getWeaponType()
 	return nil
 end
 
+local lastBladeReloadTime = 0
 local lastRefillTime = 0
+local cachedRefillPart = nil
+
+local function getCachedRefillPart()
+	if cachedRefillPart and cachedRefillPart.Parent then return cachedRefillPart end
+	cachedRefillPart = getRefillPart()
+	return cachedRefillPart
+end
 
 local function handleWeaponReload()
 	if not autoReloadEnabled then return end
@@ -1542,13 +1549,17 @@ local function handleWeaponReload()
 	if isLobby then return end
 	if os.clock() - lastReloadTime < getgenv().AutoFarmConfig.ReloadCooldown then return end
 
+	local HUD = INTERFACE:FindFirstChild("HUD")
+	if not HUD then return end
+
 	local weaponType = getWeaponType()
 	if not weaponType then return end
+
+	local refillPart = getCachedRefillPart()
 
 	if weaponType == "Blades" then
 		local current = getBladeCount() or 0
 
-		-- Refill: jab 0/3 (sets khatam)
 		if current == 0 and autoRefillEnabled then
 			if os.clock() - lastRefillTime < 1.5 then return end
 			isReloading = true
@@ -1559,12 +1570,16 @@ local function handleWeaponReload()
 			return
 		end
 
-		-- Blade reload: jab sets available hain (current > 0), blade equip karo
-		if current > 0 then
+		local char = lp.Character
+		local rig = char and char:FindFirstChild("Rig_" .. lp.Name)
+		local blade = rig and rig:FindFirstChild("LeftHand") and rig.LeftHand:FindFirstChild("Blade_1")
+		if blade and blade.Transparency == 1 and current > 0 then
 			isReloading = true
 			lastReloadTime = os.clock()
+			lastBladeReloadTime = os.clock()
 			pcall(function() getRemote:InvokeServer("Blades", "Reload") end)
 			task.delay(0.5, function() isReloading = false end)
+			return
 		end
 
 	elseif weaponType == "Spears" then
@@ -1574,8 +1589,6 @@ local function handleWeaponReload()
 		local spearsLabel = spearsFrame and spearsFrame:FindFirstChild("Spears")
 		if not spearsLabel then return end
 		local spearCount = tonumber(spearsLabel.Text:match("(%d+)")) or 0
-
-		-- Spears empty → refill
 		if spearCount == 0 and autoRefillEnabled then
 			if os.clock() - lastRefillTime < 1.5 then return end
 			isReloading = true
