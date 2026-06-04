@@ -2910,12 +2910,16 @@ local boostItemPriority = {
 	XP   = {"2x XP Boost [2h]",  "2x XP Boost [1h]", "2x XP Boost [30m]", "2x XP Boost [15m]"},
 }
 
-local function getRawBoostData()
-	local ok, result = pcall(function()
-		return getRemote:InvokeServer("Functions", "Settings", "Get")
-	end)
-	if ok and type(result) == "table" then return result end
-	return nil
+local function getInventoryItems(data)
+	local items = {}
+	if not data or not data.Slots then return items end
+	for _, slotData in pairs(data.Slots) do
+		local inv = slotData and slotData.Inventory and slotData.Inventory.Items
+		if inv then
+			for k, v in pairs(inv) do items[k] = (items[k] or 0) + v end
+		end
+	end
+	return items
 end
 
 local function tryUseBoost(boostType, items)
@@ -2936,25 +2940,16 @@ local function tryUseBoost(boostType, items)
 end
 
 local function checkAndApplyBoosts()
-	if game.PlaceId ~= 14916516914 then return end
-
-	local data = getRawBoostData()
+	-- cache bust + direct call same as rest of script
+	lastPlayerDataTime = 0
+	lastPlayerData = nil
+	local data = GetPlayerData()
 	if not data then return end
 
 	local boosts = data.Boosts or {}
-	local items = {}
-	if data.Slots then
-		for _, slotData in pairs(data.Slots) do
-			local inv = slotData and slotData.Inventory and slotData.Inventory.Items
-			if inv then
-				for k, v in pairs(inv) do
-					items[k] = (items[k] or 0) + v
-				end
-			end
-		end
-	end
-
+	local items = getInventoryItems(data)
 	local cfg = Options.AutoBoostSelectDropdown.Value or {}
+
 	if cfg["Gold Boost"] and (boosts.Gold or 0) <= 0 then
 		tryUseBoost("Gold", items); task.wait(0.5)
 	end
@@ -2994,34 +2989,7 @@ AutoBoostGroup:AddDropdown("AutoBoostSelectDropdown", {
 AutoBoostGroup:AddButton({
 	Text = "Use Selected Boosts Now",
 	Func = function()
-		task.spawn(function()
-			if game.PlaceId ~= 14916516914 then
-				Library:Notify({ Title = "Auto Boost", Description = "Lobby mein jao pehle!", Time = 3 })
-				return
-			end
-			local data = getRawBoostData()
-			if not data then
-				Library:Notify({ Title = "Auto Boost", Description = "❌ Data fetch failed!", Time = 4 })
-				return
-			end
-			local items = {}
-			if data.Slots then
-				for _, slotData in pairs(data.Slots) do
-					local inv = slotData and slotData.Inventory and slotData.Inventory.Items
-					if inv then
-						for k, v in pairs(inv) do items[k] = (items[k] or 0) + v end
-					end
-				end
-			end
-			local used = 0
-			local cfg = Options.AutoBoostSelectDropdown.Value or {}
-			if cfg["Gold Boost"] then if tryUseBoost("Gold", items) then used += 1 end task.wait(0.3) end
-			if cfg["Luck Boost"] then if tryUseBoost("Luck", items) then used += 1 end task.wait(0.3) end
-			if cfg["XP Boost"]   then if tryUseBoost("XP",   items) then used += 1 end task.wait(0.3) end
-			if used == 0 then
-				Library:Notify({ Title = "Auto Boost", Description = "No boost items found!", Time = 4 })
-			end
-		end)
+		task.spawn(checkAndApplyBoosts)
 	end,
 })
 
@@ -3029,37 +2997,36 @@ AutoBoostGroup:AddButton({
 	Text = "Debug: Check Boost Status",
 	Func = function()
 		task.spawn(function()
-			if game.PlaceId ~= 14916516914 then
-				Library:Notify({ Title = "Debug", Description = "Lobby mein jao!", Time = 3 })
-				return
-			end
-			local data = getRawBoostData()
-			if not data then
-				Library:Notify({ Title = "Debug", Description = "❌ getRawBoostData() failed!\nCheck console.", Time = 5 })
-				return
-			end
-			local boosts = data.Boosts or {}
-			local msg = "Timers: Gold=" .. tostring(boosts.Gold or 0) ..
-				" Luck=" .. tostring(boosts.Luck or 0) ..
-				" XP=" .. tostring(boosts.XP or 0) .. "\n"
-			if data.Slots then
-				for si, sd in pairs(data.Slots) do
-					local inv = sd and sd.Inventory and sd.Inventory.Items
-					if inv then
-						for k, v in pairs(inv) do
-							if string.find(k, "Boost") then
-								msg = msg .. "[" .. si .. "] " .. k .. " x" .. v .. "\n"
-							end
-						end
+			lastPlayerDataTime = 0
+			lastPlayerData = nil
+			local ok, result = pcall(GetPlayerData)
+			local msg = "ok=" .. tostring(ok) .. " type=" .. type(result) .. "\n"
+			if ok == false then
+				msg = msg .. "ERR: " .. tostring(result):sub(1, 100)
+			elseif type(result) == "table" then
+				local b = result.Boosts
+				if b then
+					msg = msg .. "Gold=" .. tostring(b.Gold) .. " Luck=" .. tostring(b.Luck) .. " XP=" .. tostring(b.XP) .. "\n"
+				else
+					msg = msg .. "No Boosts key! Top keys: "
+					local c = 0
+					for k in pairs(result) do msg = msg .. k .. " "; c += 1; if c >= 6 then break end end
+				end
+				local inv = getInventoryItems(result)
+				for k, v in pairs(inv) do
+					if string.find(k, "Boost") then
+						msg = msg .. "\n" .. k .. " x" .. v
 					end
 				end
+			else
+				msg = msg .. "val=" .. tostring(result)
 			end
-			Library:Notify({ Title = "Boost Debug", Description = msg, Time = 10 })
+			Library:Notify({ Title = "Boost Debug", Description = msg, Time = 12 })
 		end)
 	end,
 })
 
-AutoBoostGroup:AddLabel("30m > 15m | Lobby only | 30s interval", true)
+AutoBoostGroup:AddLabel("30m > 15m | No PlaceId restriction | 30s interval", true)
 -- ==========================================
 -- STATS TAB
 -- ==========================================
