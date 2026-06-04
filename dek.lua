@@ -2911,26 +2911,29 @@ local boostItemPriority = {
 }
 
 local function tryUseBoost(boostType)
-	lastPlayerDataTime = 0 -- force fresh fetch
+	lastPlayerDataTime = 0
 	local ok, data = pcall(GetPlayerData)
-	if not ok or not data then return false end
-
-	local slotIndex = data.Current_Slot or lp:GetAttribute("Slot") or "A"
-	local slotData  = data.Slots and data.Slots[slotIndex]
-	local items     = slotData and slotData.Inventory and slotData.Inventory.Items
-	if not items then return false end
+	if not ok or not data or not data.Slots then
+		Library:Notify({ Title = "Auto Boost", Description = "❌ GetPlayerData failed", Time = 3 })
+		return false
+	end
 
 	local priority = boostItemPriority[boostType]
 	if not priority then return false end
 
-	for _, itemName in ipairs(priority) do
-		if (items[itemName] or 0) > 0 then
-			local s = pcall(function()
-				getRemote:InvokeServer("S_Inventory", "Item", itemName)
-			end)
-			if s then
-				Library:Notify({ Title = "Auto Boost", Description = "✅ Used: " .. itemName, Time = 3 })
-				return true
+	-- Iterate ALL slots (fixes nil slot issue in lobby)
+	for slotIdx, slotData in pairs(data.Slots) do
+		local items = slotData and slotData.Inventory and slotData.Inventory.Items
+		if not items then continue end
+		for _, itemName in ipairs(priority) do
+			if (items[itemName] or 0) > 0 then
+				local s = pcall(function()
+					getRemote:InvokeServer("S_Inventory", "Item", itemName)
+				end)
+				if s then
+					Library:Notify({ Title = "Auto Boost", Description = "✅ Used: " .. itemName .. " (Slot " .. slotIdx .. ")", Time = 3 })
+					return true
+				end
 			end
 		end
 	end
@@ -2938,7 +2941,6 @@ local function tryUseBoost(boostType)
 end
 
 local function checkAndApplyBoosts()
-	if game.PlaceId ~= 14916516914 then return end
 	lastPlayerDataTime = 0
 	local ok, data = pcall(GetPlayerData)
 	if not ok or not data then return end
@@ -2991,14 +2993,48 @@ AutoBoostGroup:AddButton({
 			if cfg["Luck Boost"] then if tryUseBoost("Luck") then used += 1 end task.wait(0.3) end
 			if cfg["XP Boost"]   then if tryUseBoost("XP")   then used += 1 end task.wait(0.3) end
 			if used == 0 then
-				Library:Notify({ Title = "Auto Boost", Description = "No boost items found in inventory!", Time = 3 })
+				Library:Notify({ Title = "Auto Boost", Description = "No boost items found in inventory!", Time = 4 })
 			end
 		end)
 	end,
 })
 
-AutoBoostGroup:AddLabel("30m boosts preferred over 15m\nChecks every 30s | Lobby only", true)
+-- DEBUG: shows current boost timers & inventory count
+AutoBoostGroup:AddButton({
+	Text = "Debug: Check Boost Status",
+	Func = function()
+		task.spawn(function()
+			lastPlayerDataTime = 0
+			local ok, data = pcall(GetPlayerData)
+			if not ok or not data then
+				Library:Notify({ Title = "Debug", Description = "GetPlayerData() failed!", Time = 5 })
+				return
+			end
+			local boosts = data.Boosts or {}
+			local msg = "Active Timers:\nGold=" .. tostring(boosts.Gold or 0) ..
+				" | Luck=" .. tostring(boosts.Luck or 0) ..
+				" | XP=" .. tostring(boosts.XP or 0) .. "\n\nInventory:\n"
 
+			if data.Slots then
+				for slotIdx, slotData in pairs(data.Slots) do
+					local items = slotData and slotData.Inventory and slotData.Inventory.Items
+					if items then
+						for k, v in pairs(items) do
+							if string.find(k, "Boost") then
+								msg = msg .. "[" .. slotIdx .. "] " .. k .. " x" .. tostring(v) .. "\n"
+							end
+						end
+					end
+				end
+			else
+				msg = msg .. "No Slots data!"
+			end
+			Library:Notify({ Title = "Boost Debug", Description = msg, Time = 10 })
+		end)
+	end,
+})
+
+AutoBoostGroup:AddLabel("30m > 15m priority | Checks all slots\nChecks every 30s automatically", true)
 -- ==========================================
 -- STATS TAB
 -- ==========================================
