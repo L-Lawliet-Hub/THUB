@@ -1020,9 +1020,34 @@ if rewards then
 					local inner = v.Main:FindFirstChild("Inner")
 					if inner then
 						if inner:FindFirstChild("Rarity") and inner.Rarity.BackgroundColor3 == Color3.fromRGB(255, 0, 0) then
-							local qty = inner:FindFirstChild("Quantity")
-							data.Special[v.Name] = qty and qty.Text or "1"
-						end
+    local qty = inner:FindFirstChild("Quantity")
+
+    -- Actual display name dhundo, v.Name pe fallback
+    local displayName = v.Name
+    local skipNames = { Quantity = true, Rarity = true }
+
+    -- v.Main ke direct TextLabel children check karo pehle
+    for _, child in ipairs(v.Main:GetChildren()) do
+        if child:IsA("TextLabel") and not skipNames[child.Name]
+            and child.Text and child.Text ~= "" then
+            displayName = child.Text
+            break
+        end
+    end
+
+    -- Agar abhi bhi frame name hai toh inner ke TextLabels check karo
+    if displayName == v.Name then
+        for _, child in ipairs(inner:GetChildren()) do
+            if child:IsA("TextLabel") and not skipNames[child.Name]
+                and child.Text and child.Text ~= "" then
+                displayName = child.Text
+                break
+            end
+        end
+    end
+
+    data.Special[displayName] = qty and qty.Text or "1"
+end
 					end
 				end
 			end
@@ -1313,34 +1338,45 @@ local function ExecuteImmediateAutomation()
 	-- Auto Skip Cutscenes
 	if getgenv().AutoSkip then
 		local skip = INTERFACE:FindFirstChild("Skip")
-		if skip and skip.Visible then task.wait(1) end
+		if skip and skip.Visible then task.wait(0.5) end
 		if skip and skip.Visible then
 			UseButton(skip:FindFirstChild("Interact"))
 		end
 	end
 
 	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
-	if getgenv().AutoChest then
-		local chests = INTERFACE:FindFirstChild("Chests")
-		if chests and chests.Visible then
-			local free    = chests:FindFirstChild("Free")
-			local premium = chests:FindFirstChild("Premium")
-			local finish  = chests:FindFirstChild("Finish")
+	-- Auto Open Chests (ULTRA FIX - forces both chests to open)
+if getgenv().AutoChest then
+    local chests = INTERFACE:FindFirstChild("Chests")
+    if chests and chests.Visible then
+        local free = chests:FindFirstChild("Free")
+        local premium = chests:FindFirstChild("Premium")
+        local finish = chests:FindFirstChild("Finish")
 
-			if free and free.Visible then
-				UseButton(free)
-				task.wait(0.5)
-			elseif premium and premium.Visible
-				and premium:FindFirstChild("Title")
-				and not string.find(premium.Title.Text, "(0)")
-				and getgenv().OpenSecondChest then
-				UseButton(premium)
-				task.wait(0.5)
-			elseif finish and finish.Visible then
-				UseButton(finish)
-			end
-		end
-	end
+        -- Step 1: Open Free Chest + WAIT
+        if free and free.Visible then
+            UseButton(free)
+            repeat task.wait(0.5) until not free.Visible or not chests.Visible
+        end
+
+        -- Step 2: Open Premium Chest + WAIT (if enabled)
+        if premium and premium.Visible and getgenv().OpenSecondChest then
+            -- Small delay to ensure free chest animation completes
+            task.wait(0.5)
+            
+            if premium.Visible then
+                UseButton(premium)
+                repeat task.wait(0.5) until not premium.Visible or not chests.Visible
+            end
+        end
+
+        -- Step 3: Finish button (ONLY after both done)
+        if finish and finish.Visible then
+            task.wait(0.3)
+            UseButton(finish)
+        end
+    end
+end
 
 	-- Auto Retry (US Suite logic)
 	if getgenv().AutoRetry then
@@ -1749,7 +1785,7 @@ end)
 MainGroup:AddToggle("AutoRetryTimeoutToggle", {
 	Text = "Auto Fix Retry Bug",
 	Default = false,
-	Tooltip = "If reward screen is stuck for more than the set timeout, auto return to lobby to fix the retry bug"
+	Tooltip = "If reward screen is stuck for more than the set timeout, auto return to lobby"
 })
 Toggles.AutoRetryTimeoutToggle:OnChanged(function()
 	getgenv().AutoRetryTimeout = Toggles.AutoRetryTimeoutToggle.Value
@@ -1770,6 +1806,7 @@ end)
 MainGroup:AddToggle("SoloOnlyToggle", {
 	Text = "Solo Only",
 	Default = false,
+	Tooltip = "Automatically leaves if another player joins your mission"
 })
 Toggles.SoloOnlyToggle:OnChanged(function()
 	getgenv().SoloOnly = Toggles.SoloOnlyToggle.Value
@@ -1778,6 +1815,7 @@ end)
 MainGroup:AddToggle("AutoReturnLobbyToggle", {
 	Text = "Auto Return to Lobby",
 	Default = false,
+	Tooltip = "Returns to lobby after completing specified number of games"
 })
 Toggles.AutoReturnLobbyToggle:OnChanged(function()
 	getgenv().AutoReturnLobby = Toggles.AutoReturnLobbyToggle.Value
@@ -1792,6 +1830,7 @@ MainGroup:AddSlider("ReturnAfterGamesSlider", {
 	Min = 1,
 	Max = 250,
 	Rounding = 0,
+	Tooltip = "Number of games to complete before auto returning to lobby"
 })
 Options.ReturnAfterGamesSlider:OnChanged(function()
 	getgenv().ReturnAfterGames = Options.ReturnAfterGamesSlider.Value
@@ -1806,6 +1845,7 @@ MovementGroup:AddDropdown("MovementModeDropdown", {
 	Default = 1,
 	Multi = false,
 	Text = "Movement Mode",
+	Tooltip = "Hover: Smooth flight | Teleport: Instant movement"
 })
 Options.MovementModeDropdown:OnChanged(function()
 	getgenv().AutoFarmConfig.MovementMode = Options.MovementModeDropdown.Value
@@ -1817,6 +1857,7 @@ MovementGroup:AddSlider("HoverSpeedSlider", {
 	Min = 100,
 	Max = 700,
 	Rounding = 0,
+	Tooltip = "Movement speed when using hover mode"
 })
 Options.HoverSpeedSlider:OnChanged(function()
 	getgenv().AutoFarmConfig.MoveSpeed = Options.HoverSpeedSlider.Value
@@ -1828,6 +1869,7 @@ MovementGroup:AddSlider("FloatHeightSlider", {
 	Min = 100,
 	Max = 1000,
 	Rounding = 0,
+	Tooltip = "Height above titans when attacking"
 })
 Options.FloatHeightSlider:OnChanged(function()
 	getgenv().AutoFarmConfig.HeightOffset = Options.FloatHeightSlider.Value
@@ -1836,6 +1878,7 @@ end)
 MovementGroup:AddToggle("NoclipToggle", {
 	Text = "Noclip",
 	Default = false,
+	Tooltip = "Walk through walls and objects"
 })
 Toggles.NoclipToggle:OnChanged(function()
 	setNoclip(Toggles.NoclipToggle.Value)
@@ -1848,6 +1891,7 @@ end)
 CombatGroup:AddToggle("AutoReloadToggle", {
 	Text = "Auto Reload/Refill",
 	Default = false,
+	Tooltip = "Automatically reloads and refills blades/spears"
 })
 Toggles.AutoReloadToggle:OnChanged(function()
 	autoReloadEnabled = Toggles.AutoReloadToggle.Value
@@ -1870,11 +1914,13 @@ CombatGroup:AddButton({
 		root.CFrame = refillPart.CFrame * CFrame.new(0, 5, 10)
 		Library:Notify({ Title = "TITANIC HUB", Description = "Teleported to refill station!", Time = 2 })
 	end,
+	Tooltip = "Teleports directly to the nearest refill station"
 })
 
 CombatGroup:AddToggle("AutoEscapeToggle", {
 	Text = "Auto Escape",
 	Default = false,
+	Tooltip = "Automatically escapes when grabbed by a titan"
 })
 Toggles.AutoEscapeToggle:OnChanged(function()
 	getgenv().AutoEscape = Toggles.AutoEscapeToggle.Value
@@ -1885,6 +1931,7 @@ CombatGroup:AddDivider()
 CombatGroup:AddToggle("MultiHitToggle", {
 	Text = "Multi Hit",
 	Default = false,
+	Tooltip = "Hits multiple titans with a single attack"
 })
 Toggles.MultiHitToggle:OnChanged(function()
 	getgenv().MultiHit = Toggles.MultiHitToggle.Value
@@ -1896,6 +1943,7 @@ CombatGroup:AddSlider("MultiHitCountSlider", {
 	Min = 2,
 	Max = 20,
 	Rounding = 0,
+	Tooltip = "Number of titans to hit simultaneously"
 })
 Options.MultiHitCountSlider:OnChanged(function()
 	getgenv().MultiHitCount = Options.MultiHitCountSlider.Value
@@ -1910,6 +1958,7 @@ SecurityGroup:AddDropdown("FarmOptionsDropdown", {
 	Default = {},
 	Multi = true,
 	Text = "Farm Options",
+	Tooltip = "Auto Execute: Re-run script after teleport | Failsafe: Return to lobby after timeout | Open Second Chest: Open premium chests"
 })
 Options.FarmOptionsDropdown:OnChanged(function()
 	local vals = Options.FarmOptionsDropdown.Value
@@ -1928,6 +1977,7 @@ SecurityGroup:AddLabel("Failsafe tps you back to lobby\nafter a timeout.")
 BoostGroup:AddToggle("AutoJoinBoostedMapToggle", {
 	Text = "Auto Join Boosted Map",
 	Default = false,
+	Tooltip = "Automatically detects and joins maps with active 2x rewards boost"
 })
 Toggles.AutoJoinBoostedMapToggle:OnChanged(function()
 	getgenv().AutoJoinBoostedMap = Toggles.AutoJoinBoostedMapToggle.Value
@@ -2006,6 +2056,7 @@ end)
 BoostGroup:AddToggle("AutoModifiersToggle", {
 	Text = "Auto Enable All Modifiers",
 	Default = false,
+	Tooltip = "Enables all mission modifiers for maximum rewards multiplier"
 })
 Toggles.AutoModifiersToggle:OnChanged(function()
 	getgenv().AutoModifiers = Toggles.AutoModifiersToggle.Value
@@ -2017,11 +2068,12 @@ BoostGroup:AddButton({
 		local boostedMap = workspace:GetAttribute("Boosted_Map")
 		local boostedTimer = workspace:GetAttribute("Boosted_Timer")
 		if boostedMap and boostedMap ~= "" then
-			Library:Notify({ Title = "🎯 Current Boost", Description = "Map: " .. boostedMap .. "\nTime Left: " .. tostring(boostedTimer or "N/A") .. "s", Time = 8 })
+			Library:Notify({ Title = "Current Boost", Description = "Map: " .. boostedMap .. "\nTime Left: " .. tostring(boostedTimer or "N/A") .. "s", Time = 8 })
 		else
 			Library:Notify({ Title = "No Boost", Description = "No boosted map active!", Time = 5 })
 		end
 	end,
+	Tooltip = "Shows which map currently has active boost"
 })
 
 BoostGroup:AddLabel("Auto joins boosted map with\nall modifiers for max rewards!")
@@ -2033,6 +2085,7 @@ BoostGroup:AddLabel("Auto joins boosted map with\nall modifiers for max rewards!
 MasteryGroup:AddToggle("MasteryFarmToggle", {
 	Text = "Titan Mastery Farm",
 	Default = false,
+	Tooltip = "Farms titan mastery by auto punch and using skills"
 })
 Toggles.MasteryFarmToggle:OnChanged(function()
 	getgenv().MasteryFarmConfig.Enabled = Toggles.MasteryFarmToggle.Value
@@ -2062,6 +2115,7 @@ end)
 FeaturesGroup:AddToggle("AutoSkipToggle", {
 	Text = "Auto Skip Cutscenes",
 	Default = false,
+	Tooltip = "Automatically skips mission cutscenes and animations"
 })
 Toggles.AutoSkipToggle:OnChanged(function()
 	getgenv().AutoSkip = Toggles.AutoSkipToggle.Value
@@ -2072,6 +2126,7 @@ end)
 FeaturesGroup:AddToggle("DieAtStreakToggle", {
 	Text = "Die at Streak",
 	Default = false,
+	Tooltip = "Automatically dies when reaching specified streak count"
 })
 Toggles.DieAtStreakToggle:OnChanged(function()
 	getgenv().DieAtStreak = Toggles.DieAtStreakToggle.Value
@@ -2083,6 +2138,7 @@ FeaturesGroup:AddSlider("DieAtStreakSlider", {
 	Min = 100,
 	Max = 100000,
 	Rounding = 0,
+	Tooltip = "Streak count at which to auto die"
 })
 Options.DieAtStreakSlider:OnChanged(function()
 	getgenv().DieAtStreakCount = Options.DieAtStreakSlider.Value
@@ -2091,6 +2147,7 @@ end)
 FeaturesGroup:AddToggle("AutoChestToggle", {
 	Text = "Auto Open Chests",
 	Default = false,
+	Tooltip = "Automatically opens free and premium chests after missions"
 })
 Toggles.AutoChestToggle:OnChanged(function()
 	getgenv().AutoChest = Toggles.AutoChestToggle.Value
@@ -2099,6 +2156,7 @@ end)
 FeaturesGroup:AddToggle("DeleteMapToggle", {
 	Text = "Delete Map (FPS Boost)",
 	Default = DropdownConfig.DeleteMap or false,
+	Tooltip = "Removes map objects for significant FPS improvement"
 })
 Toggles.DeleteMapToggle:OnChanged(function()
 	getgenv().DeleteMap = Toggles.DeleteMapToggle.Value
@@ -2107,6 +2165,86 @@ Toggles.DeleteMapToggle:OnChanged(function()
 	if getgenv().DeleteMap then DeleteMap() end
 end)
 
+FeaturesGroup:AddDivider()
+
+FeaturesGroup:AddToggle("AutoBoostToggle", {
+	Text = "Auto Use Boosts",
+	Default = false,
+	Tooltip = "Automatically uses XP/Gold/Luck boosts from inventory when available"
+})
+Toggles.AutoBoostToggle:OnChanged(function()
+	getgenv().AutoBoost = Toggles.AutoBoostToggle.Value
+	if not getgenv().AutoBoost then return end
+	task.spawn(function()
+		local boostItems = {
+			Gold = {"2x Gold Boost [30m]", "2x Gold Boost [15m]"},
+			Luck = {"2x Luck Boost [30m]", "2x Luck Boost [15m]"},
+			XP   = {"2x XP Boost [30m]",  "2x XP Boost [15m]"},
+		}
+		local function useBoost(boostType)
+			for _, itemName in ipairs(boostItems[boostType]) do
+				local ok, result = pcall(function()
+					return getRemote:InvokeServer("S_Inventory", "Item", itemName)
+				end)
+				if ok and result ~= nil and result ~= false then
+					Library:Notify({ Title = "Auto Boost", Description = "✅ " .. itemName, Time = 3 })
+					return true
+				end
+			end
+			return false
+		end
+		while getgenv().AutoBoost do
+			local cfg = Options.BoostSelectDropdown.Value or {}
+			if cfg["Gold"] then useBoost("Gold"); task.wait(0.5) end
+			if cfg["Luck"] then useBoost("Luck"); task.wait(0.5) end
+			if cfg["XP"]   then useBoost("XP");   task.wait(0.5) end
+			task.wait(60)
+		end
+	end)
+end)
+
+FeaturesGroup:AddDropdown("BoostSelectDropdown", {
+	Values = {"Gold", "Luck", "XP"},
+	Default = {},
+	Multi = true,
+	Text = "Boosts to Auto Use",
+	Tooltip = "Select which boost types to automatically use"
+})
+
+FeaturesGroup:AddButton({
+	Text = "Use Boosts Now",
+	Func = function()
+		task.spawn(function()
+			local boostItems = {
+				Gold = {"2x Gold Boost [2h]", "2x Gold Boost [1h]", "2x Gold Boost [30m]", "2x Gold Boost [15m]"},
+	Luck = {"2x Luck Boost [2h]", "2x Luck Boost [1h]", "2x Luck Boost [30m]", "2x Luck Boost [15m]"},
+	XP   = {"2x XP Boost [2h]",  "2x XP Boost [1h]", "2x XP Boost [30m]", "2x XP Boost [15m]"},
+			}
+			local cfg = Options.BoostSelectDropdown.Value or {}
+			local used = 0
+			for boostType, items in pairs(boostItems) do
+				if cfg[boostType] then
+					for _, itemName in ipairs(items) do
+						local ok, result = pcall(function()
+							return getRemote:InvokeServer("S_Inventory", "Item", itemName)
+						end)
+						if ok and result ~= nil and result ~= false then
+							Library:Notify({ Title = "Auto Boost", Description = "✅ " .. itemName, Time = 3 })
+							used += 1
+							break
+						end
+					end
+					task.wait(0.4)
+				end
+			end
+			if used == 0 then
+				Library:Notify({ Title = "Auto Boost", Description = "No items available!", Time = 3 })
+			end
+		end)
+	end,
+	Tooltip = "Immediately uses all available selected boosts"
+})
+
 -- ==========================================
 -- FARM TAB : Auto Start
 -- ==========================================
@@ -2114,6 +2252,7 @@ end)
 AutoStartGroup:AddToggle("AutoStartToggle", {
 	Text = "Auto Start",
 	Default = false,
+	Tooltip = "Automatically creates and starts missions with selected settings"
 })
 Toggles.AutoStartToggle:OnChanged(function()
 	getgenv().AutoStart = Toggles.AutoStartToggle.Value
@@ -2238,6 +2377,7 @@ end)
 AutoStartGroup:AddToggle("WaitBeforeStartToggle", {
 	Text = "Wait Before Start",
 	Default = false,
+	Tooltip = "Adds a delay before starting the mission after creation"
 })
 Toggles.WaitBeforeStartToggle:OnChanged(function()
 	getgenv().WaitBeforeStart = Toggles.WaitBeforeStartToggle.Value
@@ -2249,6 +2389,7 @@ AutoStartGroup:AddSlider("WaitBeforeStartSlider", {
 	Min = 0,
 	Max = 500,
 	Rounding = 0,
+	Tooltip = "Delay in seconds before mission starts"
 })
 Options.WaitBeforeStartSlider:OnChanged(function()
 	getgenv().WaitBeforeStartSecs = Options.WaitBeforeStartSlider.Value
@@ -2386,6 +2527,7 @@ AutoStartGroup:AddDropdown("ModifiersDropdown", {
 AutoStartGroup:AddToggle("AllModifiersToggle", {
 	Text = "Enable All Modifiers (Max Rewards)",
 	Default = false,
+	Tooltip = "Enables all 9 modifiers for maximum 3.5x reward multiplier"
 })
 Toggles.AllModifiersToggle:OnChanged(function()
 	if Toggles.AllModifiersToggle.Value then
@@ -2840,6 +2982,7 @@ SettingsGroup:AddToggle("AutoHideToggle", {
 SettingsGroup:AddToggle("AutoClaimAchievementsToggle", {
 	Text = "Auto Claim Achievements",
 	Default = false,
+	Tooltip = "Automatically claims all available achievement rewards in lobby"
 })
 Toggles.AutoClaimAchievementsToggle:OnChanged(function()
 	getgenv().AutoClaimAchievements = Toggles.AutoClaimAchievementsToggle.Value
@@ -2864,6 +3007,7 @@ end)
 SettingsGroup:AddToggle("Disable3DRendering", {
 	Text = "Disable 3D Rendering (FPS Boost)",
 	Default = false,
+	Tooltip = "Completely disables 3D rendering for maximum FPS"
 })
 Toggles.Disable3DRendering:OnChanged(function()
 	RunService:Set3dRenderingEnabled(not Toggles.Disable3DRendering.Value)
@@ -2934,6 +3078,7 @@ SessionGroup:AddButton({
 CrashGroup:AddToggle("AutoRejoinToggle", {
 	Text = "Auto Rejoin on Crash",
 	Default = false,
+	Tooltip = "Detects crashed/stuck missions and automatically returns to lobby"
 })
 Toggles.AutoRejoinToggle:OnChanged(function()
 	getgenv().AutoRejoin = Toggles.AutoRejoinToggle.Value
@@ -3001,7 +3146,7 @@ end)
 
 task.spawn(function()
 	while not Library.Unloaded do
-		pcall(ExecuteImmediateAutomation)
+		local success, err = pcall(ExecuteImmediateAutomation)
 		task.wait(0.5)
 	end
 end)
