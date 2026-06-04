@@ -1020,9 +1020,34 @@ if rewards then
 					local inner = v.Main:FindFirstChild("Inner")
 					if inner then
 						if inner:FindFirstChild("Rarity") and inner.Rarity.BackgroundColor3 == Color3.fromRGB(255, 0, 0) then
-							local qty = inner:FindFirstChild("Quantity")
-							data.Special[v.Name] = qty and qty.Text or "1"
-						end
+    local qty = inner:FindFirstChild("Quantity")
+
+    -- Actual display name dhundo, v.Name pe fallback
+    local displayName = v.Name
+    local skipNames = { Quantity = true, Rarity = true }
+
+    -- v.Main ke direct TextLabel children check karo pehle
+    for _, child in ipairs(v.Main:GetChildren()) do
+        if child:IsA("TextLabel") and not skipNames[child.Name]
+            and child.Text and child.Text ~= "" then
+            displayName = child.Text
+            break
+        end
+    end
+
+    -- Agar abhi bhi frame name hai toh inner ke TextLabels check karo
+    if displayName == v.Name then
+        for _, child in ipairs(inner:GetChildren()) do
+            if child:IsA("TextLabel") and not skipNames[child.Name]
+                and child.Text and child.Text ~= "" then
+                displayName = child.Text
+                break
+            end
+        end
+    end
+
+    data.Special[displayName] = qty and qty.Text or "1"
+end
 					end
 				end
 			end
