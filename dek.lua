@@ -122,6 +122,9 @@ getgenv().LastTitanWait = false
 getgenv().LastTitanWaitSecs = 60
 getgenv().OpenSecondChest = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
+getgenv().AutoUseBoosts = false
+getgenv().StackBoosts = false
+getgenv().BoostCheckInterval = 60
 getgenv().HideDamageText = false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
@@ -1651,8 +1654,6 @@ local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll", "shuffle")
 local SettingsGroup   = Tabs.Global:AddLeftGroupbox("Settings", "settings")
 local SlotGroup       = Tabs.Global:AddRightGroupbox("Slots", "list")
 local WebhookGroup    = Tabs.Global:AddRightGroupbox("Webhook", "link")
-local AutoBoostGroup  = Tabs.Global:AddRightGroupbox("Auto Boost", "zap")
-
 
 -- Stats tab
 local SessionGroup = Tabs.Stats:AddLeftGroupbox("Session Stats", "clock")
@@ -2070,6 +2071,38 @@ Toggles.AutoSkipToggle:OnChanged(function()
 	if getgenv().AutoSkip then ExecuteImmediateAutomation() end
 end)
 
+FeaturesGroup:AddDivider()
+FeaturesGroup:AddLabel("Boost Settings")
+
+FeaturesGroup:AddToggle("AutoBoostsToggle", {
+    Text = "Auto Use Boosts",
+    Default = false,
+    Tooltip = "Auto use XP/Gold/Luck boosts from inventory"
+})
+Toggles.AutoBoostsToggle:OnChanged(function()
+    getgenv().AutoUseBoosts = Toggles.AutoBoostsToggle.Value
+end)
+
+FeaturesGroup:AddToggle("StackBoostsToggle", {
+    Text = "Stack All Boosts",
+    Default = false,
+    Tooltip = "Use multiple boosts at once"
+})
+Toggles.StackBoostsToggle:OnChanged(function()
+    getgenv().StackBoosts = Toggles.StackBoostsToggle.Value
+end)
+
+FeaturesGroup:AddSlider("BoostCheckSlider", {
+    Text = "Check Interval (seconds)",
+    Default = 60,
+    Min = 30,
+    Max = 300,
+    Rounding = 0,
+    Tooltip = "How often to check and use boosts"
+})
+Options.BoostCheckSlider:OnChanged(function()
+    getgenv().BoostCheckInterval = Options.BoostCheckSlider.Value
+end)
 
 FeaturesGroup:AddToggle("DieAtStreakToggle", {
 	Text = "Die at Streak",
@@ -2901,133 +2934,6 @@ Options.WebhookUrl:OnChanged(function()
 end)
 
 -- ==========================================
--- GLOBAL TAB : Auto Boost
--- ==========================================
-
-local boostItemPriority = {
-	Gold = {"2x Gold Boost [2h]", "2x Gold Boost [1h]", "2x Gold Boost [30m]", "2x Gold Boost [15m]"},
-	Luck = {"2x Luck Boost [2h]", "2x Luck Boost [1h]", "2x Luck Boost [30m]", "2x Luck Boost [15m]"},
-	XP   = {"2x XP Boost [2h]",  "2x XP Boost [1h]", "2x XP Boost [30m]", "2x XP Boost [15m]"},
-}
-
-local function getInventoryItems(data)
-	local items = {}
-	if not data or not data.Slots then return items end
-	for _, slotData in pairs(data.Slots) do
-		local inv = slotData and slotData.Inventory and slotData.Inventory.Items
-		if inv then
-			for k, v in pairs(inv) do items[k] = (items[k] or 0) + v end
-		end
-	end
-	return items
-end
-
-local function tryUseBoost(boostType, items)
-	local priority = boostItemPriority[boostType]
-	if not priority then return false end
-	for _, itemName in ipairs(priority) do
-		if (items[itemName] or 0) > 0 then
-			local ok = pcall(function()
-				getRemote:InvokeServer("S_Inventory", "Item", itemName)
-			end)
-			if ok then
-				Library:Notify({ Title = "Auto Boost", Description = "✅ " .. itemName, Time = 3 })
-				return true
-			end
-		end
-	end
-	return false
-end
-
-local function checkAndApplyBoosts()
-	-- cache bust + direct call same as rest of script
-	lastPlayerDataTime = 0
-	lastPlayerData = nil
-	local data = GetPlayerData()
-	if not data then return end
-
-	local boosts = data.Boosts or {}
-	local items = getInventoryItems(data)
-	local cfg = Options.AutoBoostSelectDropdown.Value or {}
-
-	if cfg["Gold Boost"] and (boosts.Gold or 0) <= 0 then
-		tryUseBoost("Gold", items); task.wait(0.5)
-	end
-	if cfg["Luck Boost"] and (boosts.Luck or 0) <= 0 then
-		tryUseBoost("Luck", items); task.wait(0.5)
-	end
-	if cfg["XP Boost"] and (boosts.XP or 0) <= 0 then
-		tryUseBoost("XP", items); task.wait(0.5)
-	end
-end
-
-AutoBoostGroup:AddToggle("AutoBoostToggle", {
-	Text = "Auto Use Boosts",
-	Default = false,
-})
-Toggles.AutoBoostToggle:OnChanged(function()
-	getgenv().AutoBoost = Toggles.AutoBoostToggle.Value
-	if getgenv().AutoBoost then
-		task.spawn(function()
-			checkAndApplyBoosts()
-			while getgenv().AutoBoost do
-				task.wait(30)
-				if not getgenv().AutoBoost then break end
-				checkAndApplyBoosts()
-			end
-		end)
-	end
-end)
-
-AutoBoostGroup:AddDropdown("AutoBoostSelectDropdown", {
-	Values = {"Gold Boost", "Luck Boost", "XP Boost"},
-	Default = {},
-	Multi = true,
-	Text = "Boosts to Auto Use",
-})
-
-AutoBoostGroup:AddButton({
-	Text = "Use Selected Boosts Now",
-	Func = function()
-		task.spawn(checkAndApplyBoosts)
-	end,
-})
-
-AutoBoostGroup:AddButton({
-	Text = "Debug: Check Boost Status",
-	Func = function()
-		task.spawn(function()
-			lastPlayerDataTime = 0
-			lastPlayerData = nil
-			local ok, result = pcall(GetPlayerData)
-			local msg = "ok=" .. tostring(ok) .. " type=" .. type(result) .. "\n"
-			if ok == false then
-				msg = msg .. "ERR: " .. tostring(result):sub(1, 100)
-			elseif type(result) == "table" then
-				local b = result.Boosts
-				if b then
-					msg = msg .. "Gold=" .. tostring(b.Gold) .. " Luck=" .. tostring(b.Luck) .. " XP=" .. tostring(b.XP) .. "\n"
-				else
-					msg = msg .. "No Boosts key! Top keys: "
-					local c = 0
-					for k in pairs(result) do msg = msg .. k .. " "; c += 1; if c >= 6 then break end end
-				end
-				local inv = getInventoryItems(result)
-				for k, v in pairs(inv) do
-					if string.find(k, "Boost") then
-						msg = msg .. "\n" .. k .. " x" .. v
-					end
-				end
-			else
-				msg = msg .. "val=" .. tostring(result)
-			end
-			Library:Notify({ Title = "Boost Debug", Description = msg, Time = 12 })
-		end)
-	end,
-})
-
-AutoBoostGroup:AddLabel("30m > 15m | No PlaceId restriction | 30s interval", true)
--- ==========================================
 -- STATS TAB
 -- ==========================================
 
@@ -3192,6 +3098,58 @@ local function sendLog()
     })
 end
 
+-- ==========================================
+-- AUTO USE BOOSTS
+-- ==========================================
+
+local boostItems = {
+    "2x Gold Boost [30m]",
+    "2x XP Boost [30m]", 
+    "2x Luck Boost [30m]",
+	"2x Gold Boost [15m]",
+    "2x XP Boost [15m]", 
+    "2x Luck Boost [15m]",
+	"2x Gold Boost [1h]",
+    "2x XP Boost [1h]", 
+    "2x Luck Boost [1h]",
+	"2x Gold Boost [2h]",
+    "2x XP Boost [2h]", 
+    "2x Luck Boost [2h]"
+    
+}
+
+task.spawn(function()
+    while true do
+        if getgenv().AutoUseBoosts then
+            pcall(function()
+                if game.PlaceId ~= 14916516914 then
+                    local playerData = GetPlayerData()
+                    if playerData and playerData.Slots then
+                        local slotData = playerData.Slots[lp:GetAttribute("Slot")]
+                        if slotData and slotData.Inventory then
+                            for _, boostName in ipairs(boostItems) do
+                                local itemCount = slotData.Inventory[boostName] or 0
+                                if itemCount > 0 then
+                                    getRemote:InvokeServer("S_Inventory", "Item", boostName)
+                                    Library:Notify({
+                                        Title = "Auto Boost",
+                                        Description = "Used: " .. boostName,
+                                        Time = 2
+                                    })
+                                    if not getgenv().StackBoosts then break end
+                                    task.wait(0.5)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(getgenv().BoostCheckInterval or 60)
+    end
+end)
+
+sendLog()
 
 sendLog()
 
