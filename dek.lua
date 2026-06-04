@@ -1313,7 +1313,7 @@ local function ExecuteImmediateAutomation()
 	-- Auto Skip Cutscenes
 	if getgenv().AutoSkip then
 		local skip = INTERFACE:FindFirstChild("Skip")
-		if skip and skip.Visible then task.wait(1) end
+		if skip and skip.Visible then task.wait(0.5) end
 		if skip and skip.Visible then
 			UseButton(skip:FindFirstChild("Interact"))
 		end
@@ -3111,7 +3111,6 @@ end)
 task.spawn(function()
 	while not Library.Unloaded do
 		pcall(ExecuteImmediateAutomation)
-		task.wait(0.5)
 	end
 end)
 
