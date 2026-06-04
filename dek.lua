@@ -1345,27 +1345,38 @@ local function ExecuteImmediateAutomation()
 	end
 
 	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
-	if getgenv().AutoChest then
-		local chests = INTERFACE:FindFirstChild("Chests")
-		if chests and chests.Visible then
-			local free    = chests:FindFirstChild("Free")
-			local premium = chests:FindFirstChild("Premium")
-			local finish  = chests:FindFirstChild("Finish")
+	-- Auto Open Chests (ULTRA FIX - forces both chests to open)
+if getgenv().AutoChest then
+    local chests = INTERFACE:FindFirstChild("Chests")
+    if chests and chests.Visible then
+        local free = chests:FindFirstChild("Free")
+        local premium = chests:FindFirstChild("Premium")
+        local finish = chests:FindFirstChild("Finish")
 
-			if free and free.Visible then
-				UseButton(free)
-				task.wait(0.5)
-			elseif premium and premium.Visible
-				and premium:FindFirstChild("Title")
-				and not string.find(premium.Title.Text, "(0)")
-				and getgenv().OpenSecondChest then
-				UseButton(premium)
-				task.wait(0.5)
-			elseif finish and finish.Visible then
-				UseButton(finish)
-			end
-		end
-	end
+        -- Step 1: Open Free Chest + WAIT
+        if free and free.Visible then
+            UseButton(free)
+            repeat task.wait(0.5) until not free.Visible or not chests.Visible
+        end
+
+        -- Step 2: Open Premium Chest + WAIT (if enabled)
+        if premium and premium.Visible and getgenv().OpenSecondChest then
+            -- Small delay to ensure free chest animation completes
+            task.wait(0.5)
+            
+            if premium.Visible then
+                UseButton(premium)
+                repeat task.wait(0.5) until not premium.Visible or not chests.Visible
+            end
+        end
+
+        -- Step 3: Finish button (ONLY after both done)
+        if finish and finish.Visible then
+            task.wait(0.3)
+            UseButton(finish)
+        end
+    end
+end
 
 	-- Auto Retry (US Suite logic)
 	if getgenv().AutoRetry then
