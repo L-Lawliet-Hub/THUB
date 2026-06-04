@@ -3135,8 +3135,8 @@ end)
 
 task.spawn(function()
 	while not Library.Unloaded do
-			task.wait(0.5)
 		pcall(ExecuteImmediateAutomation)
+			task.wait(0.1)
 	end
 end)
 
