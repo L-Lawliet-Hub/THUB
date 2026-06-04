@@ -2071,6 +2071,33 @@ Toggles.AutoSkipToggle:OnChanged(function()
 	if getgenv().AutoSkip then ExecuteImmediateAutomation() end
 end)
 
+-- GUI mein add karo (FeaturesGroup)
+FeaturesGroup:AddButton({
+    Text = "🧪 Test Use XP Boost",
+    Func = function()
+        pcall(function()
+            -- Try all possible remote formats
+            print("Trying S_Inventory...")
+            getRemote:InvokeServer("S_Inventory", "Item", "2x Luck Boost [30m]")
+            
+            task.wait(0.5)
+            print("Trying Functions.Boost...")
+            getRemote:InvokeServer("Functions", "Boost", "Use", "2x Luck Boost [30m]")
+            
+            task.wait(0.5)
+            print("Trying direct...")
+            postRemote:FireServer("S_Inventory", "Item", "2x Luck Boost [30m]")
+            
+            Library:Notify({
+                Title = "Test Complete",
+                Description = "Check if boost was used!",
+                Time = 5
+            })
+        end)
+    end,
+    Tooltip = "Test button to find correct remote"
+})
+
 FeaturesGroup:AddDivider()
 FeaturesGroup:AddLabel("Boost Settings")
 
