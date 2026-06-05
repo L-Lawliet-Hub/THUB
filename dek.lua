@@ -1332,28 +1332,22 @@ local function setupAutoExecute()
 end
 
 local function ExecuteImmediateAutomation()
-	-- Auto Skip Cutscenes
-	-- Auto Skip Cutscenes + Auto TP to Refill
+	
+-- Auto Skip Cutscenes (WORKING REMOTE)
 if getgenv().AutoSkip then
     local skip = INTERFACE:FindFirstChild("Skip")
     
     if skip and skip.Visible then
-        -- Skip button press
+        -- Method 1: Skip button
         UseButton(skip:FindFirstChild("Interact"))
         
-        -- Wait 0.4 seconds then TP to refill
-        task.wait(0.4)
-        
-        -- TP to Refill
+        -- Method 2: Remote skip (confirmed working)
         pcall(function()
-            local refillPart = getRefillPart()
-            if refillPart then
-                local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-                if root then
-                    root.CFrame = refillPart.CFrame * CFrame.new(0, 5, 10)
-                end
-            end
+            postRemote:FireServer("Functions", "Finished", skip:FindFirstChild("Start"))
         end)
+        
+        -- Wait 0.4 seconds after skip
+        task.wait(0.4)
     end
 end
 
