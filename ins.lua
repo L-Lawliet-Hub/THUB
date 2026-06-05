@@ -976,6 +976,7 @@ if rewards then
 		data.Total = {}
 		data.Items = {}
 		data.Special = {}
+		local dropsData = {} -- itemId -> itemName mapping for Special lookup
 
 		for i, v in ipairs(statsFrame:GetChildren()) do
 			if v:IsA("Frame") and v:FindFirstChild("Stat") and v:FindFirstChild("Amount") then
@@ -1000,8 +1001,11 @@ if rewards then
 					end
 				end
 				if ob.Drops then
-					for itemName, qty in pairs(ob.Drops) do
-						data.Items[itemName] = tostring(qty)
+					for itemId, itemName in pairs(ob.Drops) do
+						local name = tostring(itemName)
+						dropsData[tostring(itemId)] = name
+						local existing = tonumber(data.Items[name]) or 0
+						data.Items[name] = tostring(existing + 1)
 					end
 				end
 				if ob.Chests then
@@ -1014,40 +1018,31 @@ if rewards then
 			end
 		end)
 
+		-- SECRET PERK DETECTION (server-side, reliable)
+		pcall(function()
+			local res2 = getRemote:InvokeServer("S_Rewards", "Get", true)
+			if res2 and res2.Obtained and res2.Obtained.Perks then
+				for _, perkName in ipairs(res2.Obtained.Perks) do
+					if GetPerkRarity(perkName) == "Secret" then
+						data.Special["Perk: " .. perkName] = "1"
+					end
+				end
+			end
+		end)
+
+		-- MYTHICAL ITEM DROPS (non-perk, GUI scan)
 		if itemsFrame then
-			for i, v in ipairs(itemsFrame:GetChildren()) do
+			for _, v in ipairs(itemsFrame:GetChildren()) do
 				if v:IsA("Frame") and v:FindFirstChild("Main") then
 					local inner = v.Main:FindFirstChild("Inner")
-					if inner then
-						if inner:FindFirstChild("Rarity") and inner.Rarity.BackgroundColor3 == Color3.fromRGB(255, 0, 0) then
-    local qty = inner:FindFirstChild("Quantity")
-
-    -- Actual display name dhundo, v.Name pe fallback
-    local displayName = v.Name
-    local skipNames = { Quantity = true, Rarity = true }
-
-    -- v.Main ke direct TextLabel children check karo pehle
-    for _, child in ipairs(v.Main:GetChildren()) do
-        if child:IsA("TextLabel") and not skipNames[child.Name]
-            and child.Text and child.Text ~= "" then
-            displayName = child.Text
-            break
-        end
-    end
-
-    -- Agar abhi bhi frame name hai toh inner ke TextLabels check karo
-    if displayName == v.Name then
-        for _, child in ipairs(inner:GetChildren()) do
-            if child:IsA("TextLabel") and not skipNames[child.Name]
-                and child.Text and child.Text ~= "" then
-                displayName = child.Text
-                break
-            end
-        end
-    end
-
-    data.Special[displayName] = qty and qty.Text or "1"
-end
+					if inner and inner:FindFirstChild("Rarity")
+					   and inner.Rarity.BackgroundColor3 == Color3.fromRGB(255, 0, 0) then
+						local qty = inner:FindFirstChild("Quantity")
+						local itemId = string.match(tostring(v.Name), "(%d+)$")
+						local displayName = (itemId and dropsData[itemId]) or v.Name
+						if not data.Special[displayName] then
+							data.Special[displayName] = qty and qty.Text or "1"
+						end
 					end
 				end
 			end
@@ -1164,7 +1159,7 @@ local Perks = {
 	Secret = {
 		"Everlasting Flame","Heavenly Restriction","Adaptation","Maximum Firepower",
 		"Soulfeed","Kengo","Black Flash","Font of Inspiration","Explosive Fortune",
-		"Immortal","Art of War","Tatsujin","Founder's Blessing"
+		"Immortal","Art of War","Tatsujin","Founder's Blessing","Unwavering Belief"
 	}
 }
 
