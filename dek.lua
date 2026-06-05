@@ -110,6 +110,7 @@ getgenv().AutoSkip = false
 getgenv().AutoPrestige = false
 getgenv().AutoFailsafe = false
 getgenv().AutoExecute = false
+getgenv().ForceRetry = false
 getgenv().RewardWebhook = false
 getgenv().MythicalFamilyWebhook = false
 getgenv().AutoReturnLobby = false
@@ -1325,7 +1326,7 @@ local function setupAutoExecute()
 			repeat task.wait() until game:IsLoaded()
 			task.wait(5)
 			getgenv().AutoExec = false
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/dek.lua"))()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/ins.lua"))()
 		]])
 	end
 end
@@ -1656,7 +1657,7 @@ local Tabs = {
 	Farm     = Window:AddTab("Main",     "house"),
 	Utility  = Window:AddTab("Utils",  "zap"),
 	Configs  = Window:AddTab("Configs", "settings-2"),
-	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
+	Upgrades = Window:AddTab("Upgrades", "trending-up"),
 	Global   = Window:AddTab("Central",   "globe"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
@@ -1772,26 +1773,7 @@ MainGroup:AddSlider("LastTitanWaitSlider", {
 Options.LastTitanWaitSlider:OnChanged(function()
 	getgenv().LastTitanWaitSecs = Options.LastTitanWaitSlider.Value
 end)
--- Farm Tab mein add karo
-MainGroup:AddToggle("ForceRetryToggle", {
-    Text = "Force Retry",
-    Default = false,
-    Tooltip = "Forcefully retry mission if normal retry fails - uses 3 different methods"
-})
-Toggles.ForceRetryToggle:OnChanged(function()
-    getgenv().ForceRetry = Toggles.ForceRetryToggle.Value
-    if getgenv().ForceRetry then
-        retryAttempts = 0
-    end
-end)
 
-MainGroup:AddButton({
-    Text = "Force Retry Now",
-    Func = function()
-        attemptForceRetry()
-    end,
-    Tooltip = "Immediately attempt force retry using all methods"
-})
 
 MainGroup:AddToggle("AutoRetryToggle", {
 	Text = "Auto Retry",
@@ -1821,6 +1803,16 @@ MainGroup:AddSlider("RetryTimeoutSlider", {
 })
 Options.RetryTimeoutSlider:OnChanged(function()
 	MAX_REWARD_WAIT = Options.RetryTimeoutSlider.Value
+end)
+
+MainGroup:AddToggle("ForceRetryToggle", {
+    Text = "Force Retry",
+    Default = false,
+    Tooltip = "Forcefully retry using 3 methods if normal retry fails"
+})
+Toggles.ForceRetryToggle:OnChanged(function()
+    getgenv().ForceRetry = Toggles.ForceRetryToggle.Value
+    if getgenv().ForceRetry then retryAttempts = 0 end
 end)
 
 MainGroup:AddToggle("SoloOnlyToggle", {
@@ -3511,6 +3503,122 @@ local function sendLog()
     })
 end
 
+-- ==========================================
+-- FORCE RETRY SYSTEM
+-- ==========================================
+
+
+local retryAttempts = 0
+local MAX_FORCE_RETRIES = 3
+
+-- Method 1: Direct remote call
+local function forceRetryRemote()
+    pcall(function()
+        getRemote:InvokeServer("Functions", "Teleport", "Retry")
+    end)
+end
+
+-- Method 2: Recreate same mission
+local function forceRetryRecreate()
+    pcall(function()
+        local missionType = Options.StartTypeDropdown.Value or "Missions"
+        local mapName = Options.MissionMapDropdown.Value or "Shiganshina"
+        local objective = Options.MissionObjectiveDropdown.Value or "Skirmish"
+        local difficulty = Options.MissionDifficultyDropdown.Value or "Hardest"
+        
+        getRemote:InvokeServer("S_Missions", "Leave")
+        task.wait(1)
+        
+        getRemote:InvokeServer("S_Missions", "Create", {
+            Difficulty = difficulty,
+            Type = missionType,
+            Name = mapName,
+            Objective = objective
+        })
+        task.wait(1)
+        
+        if Options.ModifiersDropdown.Value then
+            for modName, isActive in pairs(Options.ModifiersDropdown.Value) do
+                if isActive then
+                    getRemote:InvokeServer("S_Missions", "Modify", modName)
+                end
+            end
+        end
+        
+        getRemote:InvokeServer("S_Missions", "Start")
+    end)
+end
+
+-- Method 3: Return lobby
+local function forceRetryLobby()
+    pcall(function()
+        getRemote:InvokeServer("Functions", "Teleport", "Lobby")
+        task.wait(2)
+        TeleportService:Teleport(14916516914, lp)
+    end)
+end
+
+local function attemptForceRetry()
+    retryAttempts = retryAttempts + 1
+    
+    Library:Notify({
+        Title = "Force Retry",
+        Description = "Attempt " .. retryAttempts .. "/" .. MAX_FORCE_RETRIES,
+        Time = 3
+    })
+    
+    forceRetryRemote()
+    task.wait(3)
+    
+    if game.PlaceId ~= 14916516914 and workspace:FindFirstChild("Unclimbable") then
+        retryAttempts = 0
+        return true
+    end
+    
+    if retryAttempts <= MAX_FORCE_RETRIES then
+        forceRetryRecreate()
+        task.wait(5)
+        
+        if game.PlaceId ~= 14916516914 and workspace:FindFirstChild("Unclimbable") then
+            retryAttempts = 0
+            return true
+        end
+    end
+    
+    if retryAttempts <= MAX_FORCE_RETRIES then
+        forceRetryLobby()
+        retryAttempts = 0
+    end
+    
+    return false
+end
+
+-- Force Retry Monitor
+task.spawn(function()
+    while true do
+        if getgenv().ForceRetry then
+            pcall(function()
+                if rewards and rewards.Visible and rewardGuiStartTime then
+                    local timeOnScreen = os.clock() - rewardGuiStartTime
+                    if timeOnScreen > 15 then
+                        attemptForceRetry()
+                    end
+                end
+                
+                if game.PlaceId ~= 14916516914 then
+                    if not workspace:FindFirstChild("Unclimbable") and not workspace:FindFirstChild("Titans") then
+                        task.wait(10)
+                        if not workspace:FindFirstChild("Unclimbable") then
+                            attemptForceRetry()
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(5)
+    end
+end)
+
 
 sendLog()
 
@@ -3571,155 +3679,4 @@ task.spawn(function()
 			rewardGuiStartTime = nil
 		end
 	end
-end)
-
-
--- ==========================================
--- FORCE RETRY SYSTEM
--- ==========================================
-
-getgenv().ForceRetry = false
-
--- Method 1: Direct remote call
-local function forceRetryRemote()
-    pcall(function()
-        getRemote:InvokeServer("Functions", "Teleport", "Retry")
-    end)
-end
-
--- Method 2: Recreate same mission
-local function forceRetryRecreate()
-    pcall(function()
-        local missionType = Options.StartTypeDropdown.Value or "Missions"
-        local mapName = Options.MissionMapDropdown.Value or "Shiganshina"
-        local objective = Options.MissionObjectiveDropdown.Value or "Skirmish"
-        local difficulty = Options.MissionDifficultyDropdown.Value or "Hardest"
-        
-        -- Leave current mission
-        getRemote:InvokeServer("S_Missions", "Leave")
-        task.wait(1)
-        
-        -- Create new with same settings
-        getRemote:InvokeServer("S_Missions", "Create", {
-            Difficulty = difficulty,
-            Type = missionType,
-            Name = mapName,
-            Objective = objective
-        })
-        
-        task.wait(1)
-        
-        -- Apply modifiers if needed
-        if Options.ModifiersDropdown.Value then
-            for modName, isActive in pairs(Options.ModifiersDropdown.Value) do
-                if isActive then
-                    getRemote:InvokeServer("S_Missions", "Modify", modName)
-                end
-            end
-        end
-        
-        getRemote:InvokeServer("S_Missions", "Start")
-    end)
-end
-
--- Method 3: Return lobby + Auto Start
-local function forceRetryLobby()
-    pcall(function()
-        -- Return to lobby
-        getRemote:InvokeServer("Functions", "Teleport", "Lobby")
-        task.wait(2)
-        TeleportService:Teleport(14916516914, lp)
-    end)
-end
-
--- Force Retry Logic
-local retryAttempts = 0
-local MAX_FORCE_RETRIES = 3
-
-local function attemptForceRetry()
-    retryAttempts = retryAttempts + 1
-    
-    Library:Notify({
-        Title = "🔄 Force Retry",
-        Description = "Attempt " .. retryAttempts .. "/" .. MAX_FORCE_RETRIES,
-        Time = 3
-    })
-    
-    -- Try Method 1: Direct remote
-    forceRetryRemote()
-    task.wait(3)
-    
-    -- Check if retry worked
-    if game.PlaceId ~= 14916516914 and workspace:FindFirstChild("Unclimbable") then
-        retryAttempts = 0
-        return true
-    end
-    
-    -- Try Method 2: Recreate
-    if retryAttempts <= MAX_FORCE_RETRIES then
-        Library:Notify({
-            Title = "🔄 Force Retry",
-            Description = "Method 1 failed, trying recreate...",
-            Time = 3
-        })
-        forceRetryRecreate()
-        task.wait(5)
-        
-        if game.PlaceId ~= 14916516914 and workspace:FindFirstChild("Unclimbable") then
-            retryAttempts = 0
-            return true
-        end
-    end
-    
-    -- Try Method 3: Lobby return
-    if retryAttempts <= MAX_FORCE_RETRIES then
-        Library:Notify({
-            Title = "🔄 Force Retry",
-            Description = "Method 2 failed, returning to lobby...",
-            Time = 3
-        })
-        forceRetryLobby()
-        retryAttempts = 0
-    end
-    
-    return false
-end
-
--- Force Retry Monitor
-task.spawn(function()
-    while true do
-        if getgenv().ForceRetry then
-            pcall(function()
-                -- Check if stuck on reward screen
-                if rewards and rewards.Visible and rewardGuiStartTime then
-                    local timeOnScreen = os.clock() - rewardGuiStartTime
-                    if timeOnScreen > 15 then -- 15 seconds stuck
-                        Library:Notify({
-                            Title = "🔄 Force Retry Activated!",
-                            Description = "Reward screen stuck for " .. math.floor(timeOnScreen) .. "s",
-                            Time = 5
-                        })
-                        attemptForceRetry()
-                    end
-                end
-                
-                -- Check if not in mission
-                if game.PlaceId ~= 14916516914 then
-                    if not workspace:FindFirstChild("Unclimbable") and not workspace:FindFirstChild("Titans") then
-                        -- Stuck in limbo
-                        task.wait(10)
-                        if not workspace:FindFirstChild("Unclimbable") then
-                            Library:Notify({
-                                Title = "🔄 Force Retry",
-                                Description = "Not in mission, forcing retry...",
-                                Time = 5
-                            })
-                            attemptForceRetry()
-                        end
-                    end
-                end
-            end)
-        end
-        task.wait(5)
-    end
 end)
