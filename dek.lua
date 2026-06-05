@@ -2784,45 +2784,52 @@ UpgradesGroup:AddToggle("AutoUpgradeToggle", {
 Toggles.AutoUpgradeToggle:OnChanged(function()
 	getgenv().AutoUpgrade = Toggles.AutoUpgradeToggle.Value
 	if not getgenv().AutoUpgrade then return end
-	if game.PlaceId ~= 14916516914 then
-		Library:Notify({ Title = "Auto Upgrade", Description = "Works in Lobby!", Time = 4 })
-		getgenv().AutoUpgrade = false
-		Toggles.AutoUpgradeToggle:SetValue(false)
-		return
-	end
 	task.spawn(function()
+		if game.PlaceId ~= 14916516914 then
+			Library:Notify({ Title = "Auto Upgrade", Description = "Works in lobby!", Time = 3 })
+			getgenv().AutoUpgrade = false
+			Toggles.AutoUpgradeToggle:SetValue(false)
+			return
+		end
+
+		local slot = lp:GetAttribute("Slot")
+		if not slot then
+			getRemote:InvokeServer("Functions", "Select", "A")
+			local waited = 0
+			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
+			slot = lp:GetAttribute("Slot")
+		end
+
+		if not slot then
+			Library:Notify({ Title = "Auto Upgrade", Description = "Slot not selected!", Time = 3 })
+			getgenv().AutoUpgrade = false
+			Toggles.AutoUpgradeToggle:SetValue(false)
+			return
+		end
+
+		Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " upgrading...", Time = 2 })
+
+		local allUpgrades = {
+			"Crit_Damage", "Crit_Chance",
+			"ODM_Damage", "ODM_Control", "ODM_Gas", "ODM_Speed", "Blade_Durability", "ODM_Range",
+			"Blast_Radius", "TS_Control", "TS_Range", "TS_Damage", "TS_Gas", "TS_Speed",
+		}
+
 		while getgenv().AutoUpgrade do
-			if game.PlaceId ~= 14916516914 then
-				getgenv().AutoUpgrade = false
-				Toggles.AutoUpgradeToggle:SetValue(false)
-				break
-			end
-			local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
-			if not ok or not liveData or type(liveData) ~= "table" then task.wait(2) continue end
-
-			local slotIndex = liveData.Current_Slot
-			local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
-			if not slotData then task.wait(2) continue end
-
-			local weapon = slotData.Weapon
-			local upgrades = slotData.Upgrades and slotData.Upgrades[weapon]
-			if not upgrades then task.wait(2) continue end
-
 			local anyDone = false
-			for upg, lvl in next, upgrades do
-				if lvl >= 15 then continue end
-				local success, result = pcall(function()
-					return getRemote:InvokeServer("S_Equipment", "Upgrade", upg)
+			for _, upg in ipairs(allUpgrades) do
+				if not getgenv().AutoUpgrade then break end
+				local ok, result = pcall(function()
+					return getRemote:InvokeServer("S_Equipment", "Upgrade", {upg})
 				end)
-				if success and result then
+				if ok and result ~= nil and result ~= false then
 					anyDone = true
-					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " ") .. " Lv " .. tostring(lvl + 1), Time = 1.5 })
+					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " "), Time = 1.5 })
 					task.wait(0.5)
 				end
 			end
-
 			if not anyDone then
-				Library:Notify({ Title = "Auto Upgrade", Description = weapon .. " fully maxed on slot " .. tostring(slotIndex), Time = 3 })
+				Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " fully maxed!", Time = 3 })
 				getgenv().AutoUpgrade = false
 				Toggles.AutoUpgradeToggle:SetValue(false)
 				break
