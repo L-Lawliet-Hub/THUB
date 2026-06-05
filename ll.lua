@@ -8,69 +8,63 @@ local getRemote = remotesFolder:WaitForChild("GET")
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 
-local Window = Library:CreateWindow({
-	Title = "Upgrade Test",
-	Center = true,
-	AutoShow = true,
-})
-
+local Window = Library:CreateWindow({ Title = "Upgrade Debug", Center = true, AutoShow = true })
 local Tab = Window:AddTab("Main", "settings")
-local Group = Tab:AddLeftGroupbox("Upgrade Gear", "trending-up")
+local Group = Tab:AddLeftGroupbox("Debug", "settings")
 local Toggles = Library.Toggles
 local Options = Library.Options
 
-local allUpgrades = {
-	"Crit_Damage", "Crit_Chance",
-	"ODM_Damage", "ODM_Control", "ODM_Gas", "ODM_Speed", "Blade_Durability", "ODM_Range",
-	"Blast_Radius", "TS_Control", "TS_Range", "TS_Damage", "TS_Gas", "TS_Speed",
-}
-
 local statusLabel = Group:AddLabel("Status: Idle")
 
-Group:AddToggle("UpgradeToggle", { Text = "Auto Upgrade Gear", Default = false })
-Toggles.UpgradeToggle:OnChanged(function()
-	if not Toggles.UpgradeToggle.Value then
-		statusLabel:SetText("Status: Stopped")
-		return
-	end
-	task.spawn(function()
-		-- Slot select
+-- Step 1: Slot check
+Group:AddButton({
+	Text = "1. Check Slot Attribute",
+	Func = function()
 		local slot = lp:GetAttribute("Slot")
-		if not slot then
-			statusLabel:SetText("Status: Selecting slot...")
-			getRemote:InvokeServer("Functions", "Select", "A")
-			local waited = 0
-			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
-			slot = lp:GetAttribute("Slot")
-		end
+		statusLabel:SetText("Slot = " .. tostring(slot))
+	end,
+})
 
-		if not slot then
-			statusLabel:SetText("Status: Slot select failed!")
-			Toggles.UpgradeToggle:SetValue(false)
-			return
-		end
-
-		statusLabel:SetText("Status: Upgrading slot " .. slot)
-
-		while Toggles.UpgradeToggle.Value do
-			local anyDone = false
-			for _, upg in ipairs(allUpgrades) do
-				if not Toggles.UpgradeToggle.Value then break end
-				local ok, result = pcall(function()
-					return getRemote:InvokeServer("S_Equipment", "Upgrade", upg)
-				end)
-				if ok and result ~= nil and result ~= false then
-					anyDone = true
-					statusLabel:SetText("Upgraded: " .. string.gsub(upg, "_", " "))
-					task.wait(0.5)
-				end
-			end
-			if not anyDone then
-				statusLabel:SetText("Status: All maxed!")
-				Toggles.UpgradeToggle:SetValue(false)
-				break
-			end
+-- Step 2: Force select slot A
+Group:AddButton({
+	Text = "2. Select Slot A",
+	Func = function()
+		task.spawn(function()
+			statusLabel:SetText("Selecting slot A...")
+			local ok, err = pcall(function()
+				getRemote:InvokeServer("Functions", "Select", "A")
+			end)
 			task.wait(1)
-		end
-	end)
-end)
+			local slot = lp:GetAttribute("Slot")
+			statusLabel:SetText("ok=" .. tostring(ok) .. " slot=" .. tostring(slot))
+		end)
+	end,
+})
+
+-- Step 3: Try one upgrade, show raw result
+Group:AddButton({
+	Text = "3. Try Upgrade Crit_Damage",
+	Func = function()
+		task.spawn(function()
+			local slot = lp:GetAttribute("Slot")
+			statusLabel:SetText("Slot=" .. tostring(slot) .. " | Trying...")
+			local ok, result = pcall(function()
+				return getRemote:InvokeServer("S_Equipment", "Upgrade", "Crit_Damage")
+			end)
+			statusLabel:SetText("ok=" .. tostring(ok) .. " result=" .. tostring(result))
+		end)
+	end,
+})
+
+-- Step 4: Try with different format
+Group:AddButton({
+	Text = "4. Try Upgrade ODM_Damage",
+	Func = function()
+		task.spawn(function()
+			local ok, result = pcall(function()
+				return getRemote:InvokeServer("S_Equipment", "Upgrade", "ODM_Damage")
+			end)
+			statusLabel:SetText("ok=" .. tostring(ok) .. " result=" .. tostring(result))
+		end)
+	end,
+})
