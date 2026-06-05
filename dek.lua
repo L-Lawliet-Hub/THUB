@@ -2845,99 +2845,141 @@ UpgradesGroup:AddToggle("AutoEnhanceToggle", {
 })
 Toggles.AutoEnhanceToggle:OnChanged(function()
 	getgenv().AutoPerk = Toggles.AutoEnhanceToggle.Value
-	if getgenv().AutoPerk then
-		if game.PlaceId ~= 14916516914 then return end
-		task.spawn(function()
-			local plrData = GetPlayerData()
-			if not plrData or not plrData.Slots then return end
-			local slotIndex = lp:GetAttribute("Slot")
-			if not slotIndex or not plrData.Slots[slotIndex] then
-				getgenv().AutoPerk = false
-				Toggles.AutoEnhanceToggle:SetValue(false)
-				return
-			end
+	if not getgenv().AutoPerk then return end
+	task.spawn(function()
+		-- Slot select pehle
+		local slot = lp:GetAttribute("Slot")
+		if not slot then
+			getRemote:InvokeServer("Functions", "Select", "A")
+			local waited = 0
+			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
+			slot = lp:GetAttribute("Slot")
+		end
 
-			local slot = plrData.Slots[slotIndex]
-			local storagePerks = {}
-			for id, val in pairs(slot.Perks.Storage) do storagePerks[id] = val end
-
-			local perkSlot = Options.PerkSlotDropdown.Value
-			local equippedPerkId = slot.Perks.Equipped[perkSlot]
-			if not equippedPerkId then
-				Library:Notify({ Title = "Auto Perk", Description = "No perk equipped in " .. tostring(perkSlot) .. " slot.", Time = 3 })
-				getgenv().AutoPerk = false
-				Toggles.AutoEnhanceToggle:SetValue(false)
-				return
-			end
-
-			local perkData = storagePerks[equippedPerkId]
-			if not perkData then
-				Library:Notify({ Title = "Auto Perk", Description = "Equipped perk data not found.", Time = 3 })
-				getgenv().AutoPerk = false
-				Toggles.AutoEnhanceToggle:SetValue(false)
-				return
-			end
-
-			local perkName = perkData.Name
-			local rarity = GetPerkRarity(perkName)
-			local currentLevel = perkData.Level or 0
-			local currentXP = perkData.XP or 0
-
-			while getgenv().AutoPerk do
-				if currentLevel >= 10 then
-					Library:Notify({ Title = "Auto Perk", Description = perkName .. " is already Level 10!", Time = 3 })
-					break
-				end
-
-				local selectedRarities = Options.SelectPerksDropdown.Value
-				local rarityPerks = {}
-				if selectedRarities then
-					for r, isActive in pairs(selectedRarities) do
-						if isActive then rarityPerks[r] = true end
-					end
-				end
-
-				local validPerks = {}
-				local totalXPGain = 0
-
-				for perkId, tbl in pairs(storagePerks) do
-					local r = GetPerkRarity(tbl.Name)
-					if perkId ~= equippedPerkId and rarityPerks[r] then
-						table.insert(validPerks, perkId)
-						totalXPGain = totalXPGain + GetPerkXP(r, math.max(tbl.Level or 0, 1))
-						if #validPerks >= 5 then break end
-					end
-				end
-
-				if #validPerks == 0 then
-					Library:Notify({ Title = "Auto Perk", Description = "No more food perks found.", Time = 3 })
-					break
-				end
-
-				if getRemote:InvokeServer("S_Equipment", "Enhance", equippedPerkId, validPerks) then
-					for _, id in ipairs(validPerks) do storagePerks[id] = nil end
-					currentXP = currentXP + totalXPGain
-					while currentLevel < 10 do
-						local thresholds = Perk_Level_XP[rarity]
-						if not thresholds then break end
-						local needed = thresholds[currentLevel + 1]
-						if not needed or currentXP < needed then break end
-						currentXP = currentXP - needed
-						currentLevel = currentLevel + 1
-					end
-					Library:Notify({ Title = "Enhanced: " .. perkName, Description = "Level " .. tostring(currentLevel) .. " (+" .. totalXPGain .. " XP)", Time = 1 })
-				else
-					continue
-				end
-				task.wait(0.5)
-			end
-
+		if not slot then
+			Library:Notify({ Title = "Auto Perk", Description = "Slot select nahi hua!", Time = 3 })
 			getgenv().AutoPerk = false
 			Toggles.AutoEnhanceToggle:SetValue(false)
-		end)
-	end
-end)
+			return
+		end
 
+		-- Data fetch with retry
+		local plrData = nil
+		for i = 1, 5 do
+			lastPlayerDataTime = 0
+			lastPlayerData = nil
+			local ok, result = pcall(GetPlayerData)
+			if ok and type(result) == "table" and result.Slots then
+				plrData = result
+				break
+			end
+			task.wait(1)
+		end
+
+		if not plrData or not plrData.Slots then
+			Library:Notify({ Title = "Auto Perk", Description = "Data fetch failed!", Time = 3 })
+			getgenv().AutoPerk = false
+			Toggles.AutoEnhanceToggle:SetValue(false)
+			return
+		end
+
+		local slotIndex = lp:GetAttribute("Slot")
+		if not slotIndex or not plrData.Slots[slotIndex] then
+			getgenv().AutoPerk = false
+			Toggles.AutoEnhanceToggle:SetValue(false)
+			return
+		end
+
+		local slotPerkData = plrData.Slots[slotIndex]
+		local storagePerks = {}
+		for id, val in pairs(slotPerkData.Perks.Storage) do
+			storagePerks[id] = val
+		end
+
+		local perkSlot = Options.PerkSlotDropdown.Value
+		local equippedPerkId = slotPerkData.Perks.Equipped[perkSlot]
+		if not equippedPerkId then
+			Library:Notify({ Title = "Auto Perk", Description = "No perk in " .. tostring(perkSlot) .. " slot!", Time = 3 })
+			getgenv().AutoPerk = false
+			Toggles.AutoEnhanceToggle:SetValue(false)
+			return
+		end
+
+		local perkData = storagePerks[equippedPerkId]
+		if not perkData then
+			Library:Notify({ Title = "Auto Perk", Description = "Equipped perk data not found!", Time = 3 })
+			getgenv().AutoPerk = false
+			Toggles.AutoEnhanceToggle:SetValue(false)
+			return
+		end
+
+		local perkName = perkData.Name
+		local rarity = GetPerkRarity(perkName)
+		local currentLevel = perkData.Level or 0
+		local currentXP = perkData.XP or 0
+
+		while getgenv().AutoPerk do
+			if currentLevel >= 10 then
+				Library:Notify({ Title = "Auto Perk", Description = perkName .. " Level 10 max!", Time = 3 })
+				break
+			end
+
+			local selectedRarities = Options.SelectPerksDropdown.Value
+			local rarityPerks = {}
+			if selectedRarities then
+				for r, isActive in pairs(selectedRarities) do
+					if isActive then rarityPerks[r] = true end
+				end
+			end
+
+			-- Build food perks as DICT {[id] = qty} — server expects this format
+			local foodPerkDict = {}
+			local totalXPGain = 0
+			local count = 0
+
+			for perkId, tbl in pairs(storagePerks) do
+				if count >= 5 then break end
+				local r = GetPerkRarity(tbl.Name)
+				if perkId ~= equippedPerkId and rarityPerks[r] then
+					foodPerkDict[perkId] = 1
+					totalXPGain = totalXPGain + GetPerkXP(r, math.max(tbl.Level or 0, 1))
+					count = count + 1
+				end
+			end
+
+			if count == 0 then
+				Library:Notify({ Title = "Auto Perk", Description = "No food perks found!", Time = 3 })
+				break
+			end
+
+			local ok, result = pcall(function()
+				return getRemote:InvokeServer("S_Equipment", "Enhance", equippedPerkId, foodPerkDict)
+			end)
+
+			if ok and result ~= nil and result ~= false then
+				-- Remove used food perks from storage
+				for id in pairs(foodPerkDict) do storagePerks[id] = nil end
+				currentXP = currentXP + totalXPGain
+				while currentLevel < 10 do
+					local thresholds = Perk_Level_XP[rarity]
+					if not thresholds then break end
+					local needed = thresholds[currentLevel + 1]
+					if not needed or currentXP < needed then break end
+					currentXP = currentXP - needed
+					currentLevel = currentLevel + 1
+				end
+				Library:Notify({ Title = "Enhanced: " .. perkName, Description = "Lv " .. currentLevel .. " (+" .. totalXPGain .. " XP)", Time = 1 })
+			else
+				Library:Notify({ Title = "Auto Perk", Description = "Enhance failed, stopping.", Time = 3 })
+				break
+			end
+			task.wait(0.5)
+		end
+
+		getgenv().AutoPerk = false
+		Toggles.AutoEnhanceToggle:SetValue(false)
+	end)
+end)
 UpgradesGroup:AddDropdown("PerkSlotDropdown", {
 	Values = {"Defense", "Support", "Family", "Extra", "Offense", "Body"},
 	Default = 6,
