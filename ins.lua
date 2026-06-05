@@ -122,6 +122,7 @@ getgenv().LastTitanWait = false
 getgenv().LastTitanWaitSecs = 60
 getgenv().OpenSecondChest = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
+getgenv().AdminConfig = false
 getgenv().HideDamageText = false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
@@ -1654,6 +1655,7 @@ local Window = Library:CreateWindow({
 local Tabs = {
 	Farm     = Window:AddTab("Main",     "house"),
 	Utility  = Window:AddTab("Utils",  "zap"),
+	Configs  = Window:AddTab("Configs", "settings-2"),
 	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
 	Global   = Window:AddTab("Central",   "globe"),
 	Stats    = Window:AddTab("Stats",    "activity"),
@@ -1672,6 +1674,9 @@ local SecurityGroup = Tabs.Utility:AddLeftGroupbox("Security", "shield-check")
 local BoostGroup    = Tabs.Utility:AddLeftGroupbox("Boosted Maps", "flame")
 local MasteryGroup  = Tabs.Utility:AddRightGroupbox("Mastery Farm", "award")
 local FeaturesGroup = Tabs.Utility:AddRightGroupbox("Extras", "menu")
+
+-- Configs tab
+local ConfigsGroup = Tabs.Configs:AddLeftGroupbox("Quick Configs", "zap")
 
 -- Upgrades tab
 local UpgradesGroup  = Tabs.Upgrades:AddLeftGroupbox("Upgrades", "trending-up")
@@ -2544,6 +2549,230 @@ task.defer(function()
 	Options.StartTypeDropdown:SetValue(savedType)
 end)
 
+
+-- ==========================================
+-- CONFIGS TAB
+-- ==========================================
+
+ConfigsGroup:AddLabel("One-Click Config Presets")
+
+-- ==========================================
+-- CONFIG 1: AFK Farming (Breach)
+-- ==========================================
+ConfigsGroup:AddToggle("AFKFarmingBreachToggle", {
+    Text = "AFK Farming (Breach)",
+    Default = false,
+    Tooltip = "AFK Farming for breach"
+})
+Toggles.AFKFarmingBreachToggle:OnChanged(function()
+    if Toggles.AFKFarmingBreachToggle.Value then
+        -- Turn OFF other configs
+        pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
+        pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+        
+        -- Farm Settings
+        pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
+        pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryTimeoutToggle:SetValue(true) end)
+        pcall(function() Options.RetryTimeoutSlider:SetValue(10) end)
+        
+        -- Movement
+        pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
+        pcall(function() Options.FloatHeightSlider:SetValue(170) end)
+        pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+        
+        -- Combat
+        pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
+        pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(4) end)
+        
+        -- Security
+        pcall(function() Options.FarmOptionsDropdown:SetValue({
+            ["Auto Execute"] = true, ["Failsafe"] = true
+        }) end)
+        
+        -- Extras
+        pcall(function() Toggles.DeleteMapToggle:SetValue(true) end)
+        
+        -- Auto Start - Breach
+        pcall(function() Options.StartTypeDropdown:SetValue("Missions") end)
+        pcall(function() Options.MissionMapDropdown:SetValue("Shiganshina") end)
+        pcall(function() Options.MissionObjectiveDropdown:SetValue("Breach") end)
+        pcall(function() Options.MissionDifficultyDropdown:SetValue("Hardest") end)
+        pcall(function() Options.ModifiersDropdown:SetValue({
+            ["No Perks"] = true, ["No Skills"] = true, ["No Memories"] = true,
+            ["Nightmare"] = true, ["Oddball"] = true, ["Injury Prone"] = true,
+            ["Chronic Injuries"] = true, ["Fog"] = true, ["Glass Cannon"] = true,
+            ["Time Trial"] = true
+        }) end)
+        pcall(function() Toggles.AutoStartToggle:SetValue(true) end)
+        
+        pcall(function() Toggles.AutoHideToggle:SetValue(true) end)
+        
+        Library:Notify({
+            Title = "⚙️ AFK Farming (Breach) Applied!",
+            Description = "Shiganshina | Breach | Hardest\nAll 10 Mods | Solo | Teleport",
+            Time = 5
+        })
+        
+        task.delay(3, function()
+            if Library then Library:Toggle(false) end
+        end)
+    end
+end)
+
+-- ==========================================
+-- CONFIG 2: AFK Farming (Defend)
+-- ==========================================
+ConfigsGroup:AddToggle("AFKFarmingDefendToggle", {
+    Text = "AFK Farming (Defend)",
+    Default = false,
+    Tooltip = "AFK Farming for Defend mission"
+})
+Toggles.AFKFarmingDefendToggle:OnChanged(function()
+    if Toggles.AFKFarmingDefendToggle.Value then
+        -- Turn OFF other configs
+        pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
+        pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+        
+        -- Farm Settings
+        pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
+        pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryTimeoutToggle:SetValue(true) end)
+        pcall(function() Options.RetryTimeoutSlider:SetValue(10) end)
+        
+        -- Movement
+        pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
+        pcall(function() Options.FloatHeightSlider:SetValue(170) end)
+        pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+
+		-- Extras
+		pcall(function() Toggles.AutoSkipToggle:SetValue(true) end)
+        
+        -- Combat
+        pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
+        pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(4) end)
+        
+        -- Security
+        pcall(function() Options.FarmOptionsDropdown:SetValue({
+            ["Auto Execute"] = true, ["Failsafe"] = true
+        }) end)
+        
+        -- Extras
+        pcall(function() Toggles.DeleteMapToggle:SetValue(true) end)
+        
+        -- Auto Start - Defend
+        pcall(function() Options.StartTypeDropdown:SetValue("Missions") end)
+        pcall(function() Options.MissionMapDropdown:SetValue("Utgard") end)
+        pcall(function() Options.MissionObjectiveDropdown:SetValue("Defend") end)
+        pcall(function() Options.MissionDifficultyDropdown:SetValue("Hardest") end)
+        pcall(function() Options.ModifiersDropdown:SetValue({
+            ["No Perks"] = true, ["No Skills"] = true, ["No Memories"] = true,
+            ["Nightmare"] = true, ["Oddball"] = true, ["Injury Prone"] = true,
+            ["Chronic Injuries"] = true, ["Fog"] = true, ["Glass Cannon"] = true,
+            ["Time Trial"] = true
+        }) end)
+        pcall(function() Toggles.AutoStartToggle:SetValue(true) end)
+        
+        pcall(function() Toggles.AutoHideToggle:SetValue(true) end)
+        
+        Library:Notify({
+            Title = "⚙️ AFK Farming (Defend) Applied!",
+            Description = "Utgard | Defend | Hardest\nAll 10 Mods | Solo | Teleport",
+            Time = 5
+        })
+        
+        task.delay(3, function()
+            if Library then Library:Toggle(false) end
+        end)
+    end
+end)
+
+
+-- ==========================================
+-- CONFIG 3: AFK Farming (Stall)
+-- ==========================================
+ConfigsGroup:AddToggle("AFKFarmingStallToggle", {
+    Text = "AFK Farming (Stall)",
+    Default = false,
+    Tooltip = "AFK Faming for Stall mission"
+})
+Toggles.AFKFarmingStallToggle:OnChanged(function()
+    if Toggles.AFKFarmingStallToggle.Value then
+        -- Turn OFF other configs
+        pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
+        pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
+        
+        -- Farm Settings
+        pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
+        pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryTimeoutToggle:SetValue(true) end)
+        pcall(function() Options.RetryTimeoutSlider:SetValue(10) end)
+        
+        -- Movement
+        pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
+        pcall(function() Options.FloatHeightSlider:SetValue(310) end)
+        pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+
+	    -- Extras
+		pcall(function() Toggles.AutoSkipToggle:SetValue(true) end)
+        
+        -- Combat
+        pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
+        pcall(function() Toggles.MultiHitToggle:SetValue(false) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(2) end)
+        
+        -- Security
+        pcall(function() Options.FarmOptionsDropdown:SetValue({
+            ["Auto Execute"] = true, ["Failsafe"] = true
+        }) end)
+        
+        -- Extras
+        pcall(function() Toggles.DeleteMapToggle:SetValue(false) end)
+        
+        -- Auto Start - Stall
+        pcall(function() Options.StartTypeDropdown:SetValue("Missions") end)
+        pcall(function() Options.MissionMapDropdown:SetValue("Docks") end)
+        pcall(function() Options.MissionObjectiveDropdown:SetValue("Stall") end)
+        pcall(function() Options.MissionDifficultyDropdown:SetValue("Hardest") end)
+        pcall(function() Options.ModifiersDropdown:SetValue({
+            ["No Perks"] = true, ["No Skills"] = true, ["No Memories"] = true,
+            ["Nightmare"] = true, ["Oddball"] = true, ["Injury Prone"] = true,
+            ["Chronic Injuries"] = true, ["Fog"] = true, ["Glass Cannon"] = true,
+            ["Time Trial"] = true
+        }) end)
+        pcall(function() Toggles.AutoStartToggle:SetValue(true) end)
+        
+        pcall(function() Toggles.AutoHideToggle:SetValue(true) end)
+        
+        Library:Notify({
+            Title = "⚙️ AFK Farming (Stall) Applied!",
+            Description = "Docks | Stall | Hardest\nAll 10 Mods | Solo | Teleport",
+            Time = 5
+        })
+        
+        task.delay(3, function()
+            if Library then Library:Toggle(false) end
+        end)
+    end
+end)
+
+-- Configs Info
+ConfigsGroup:AddDivider()
+ConfigsGroup:AddLabel("Configs Summary:")
+ConfigsGroup:AddLabel("• Breach: AFK Farming")
+ConfigsGroup:AddLabel("• Defend: AFK Farming")
+ConfigsGroup:AddLabel("• Stall: AFK Farming")
+ConfigsGroup:AddLabel("• All: Hardest + 10 Mods + Solo")
+
+
 -- ==========================================
 -- UPGRADES TAB
 -- ==========================================
@@ -2555,45 +2784,52 @@ UpgradesGroup:AddToggle("AutoUpgradeToggle", {
 Toggles.AutoUpgradeToggle:OnChanged(function()
 	getgenv().AutoUpgrade = Toggles.AutoUpgradeToggle.Value
 	if not getgenv().AutoUpgrade then return end
-	if game.PlaceId ~= 14916516914 then
-		Library:Notify({ Title = "Auto Upgrade", Description = "Works in Lobby!", Time = 4 })
-		getgenv().AutoUpgrade = false
-		Toggles.AutoUpgradeToggle:SetValue(false)
-		return
-	end
 	task.spawn(function()
+		if game.PlaceId ~= 14916516914 then
+			Library:Notify({ Title = "Auto Upgrade", Description = "Works in lobby!", Time = 3 })
+			getgenv().AutoUpgrade = false
+			Toggles.AutoUpgradeToggle:SetValue(false)
+			return
+		end
+
+		local slot = lp:GetAttribute("Slot")
+		if not slot then
+			getRemote:InvokeServer("Functions", "Select", "A")
+			local waited = 0
+			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
+			slot = lp:GetAttribute("Slot")
+		end
+
+		if not slot then
+			Library:Notify({ Title = "Auto Upgrade", Description = "Slot not selected!", Time = 3 })
+			getgenv().AutoUpgrade = false
+			Toggles.AutoUpgradeToggle:SetValue(false)
+			return
+		end
+
+		Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " upgrading...", Time = 2 })
+
+		local allUpgrades = {
+			"Crit_Damage", "Crit_Chance",
+			"ODM_Damage", "ODM_Control", "ODM_Gas", "ODM_Speed", "Blade_Durability", "ODM_Range",
+			"Blast_Radius", "TS_Control", "TS_Range", "TS_Damage", "TS_Gas", "TS_Speed",
+		}
+
 		while getgenv().AutoUpgrade do
-			if game.PlaceId ~= 14916516914 then
-				getgenv().AutoUpgrade = false
-				Toggles.AutoUpgradeToggle:SetValue(false)
-				break
-			end
-			local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
-			if not ok or not liveData or type(liveData) ~= "table" then task.wait(2) continue end
-
-			local slotIndex = liveData.Current_Slot
-			local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
-			if not slotData then task.wait(2) continue end
-
-			local weapon = slotData.Weapon
-			local upgrades = slotData.Upgrades and slotData.Upgrades[weapon]
-			if not upgrades then task.wait(2) continue end
-
 			local anyDone = false
-			for upg, lvl in next, upgrades do
-				if lvl >= 15 then continue end
-				local success, result = pcall(function()
-					return getRemote:InvokeServer("S_Equipment", "Upgrade", upg)
+			for _, upg in ipairs(allUpgrades) do
+				if not getgenv().AutoUpgrade then break end
+				local ok, result = pcall(function()
+					return getRemote:InvokeServer("S_Equipment", "Upgrade", {upg})
 				end)
-				if success and result then
+				if ok and result ~= nil and result ~= false then
 					anyDone = true
-					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " ") .. " Lv " .. tostring(lvl + 1), Time = 1.5 })
+					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " "), Time = 1.5 })
 					task.wait(0.5)
 				end
 			end
-
 			if not anyDone then
-				Library:Notify({ Title = "Auto Upgrade", Description = weapon .. " fully maxed on slot " .. tostring(slotIndex), Time = 3 })
+				Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " fully maxed!", Time = 3 })
 				getgenv().AutoUpgrade = false
 				Toggles.AutoUpgradeToggle:SetValue(false)
 				break
@@ -2609,99 +2845,141 @@ UpgradesGroup:AddToggle("AutoEnhanceToggle", {
 })
 Toggles.AutoEnhanceToggle:OnChanged(function()
 	getgenv().AutoPerk = Toggles.AutoEnhanceToggle.Value
-	if getgenv().AutoPerk then
-		if game.PlaceId ~= 14916516914 then return end
-		task.spawn(function()
-			local plrData = GetPlayerData()
-			if not plrData or not plrData.Slots then return end
-			local slotIndex = lp:GetAttribute("Slot")
-			if not slotIndex or not plrData.Slots[slotIndex] then
-				getgenv().AutoPerk = false
-				Toggles.AutoEnhanceToggle:SetValue(false)
-				return
-			end
+	if not getgenv().AutoPerk then return end
+	task.spawn(function()
+		-- Slot select pehle
+		local slot = lp:GetAttribute("Slot")
+		if not slot then
+			getRemote:InvokeServer("Functions", "Select", "A")
+			local waited = 0
+			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
+			slot = lp:GetAttribute("Slot")
+		end
 
-			local slot = plrData.Slots[slotIndex]
-			local storagePerks = {}
-			for id, val in pairs(slot.Perks.Storage) do storagePerks[id] = val end
-
-			local perkSlot = Options.PerkSlotDropdown.Value
-			local equippedPerkId = slot.Perks.Equipped[perkSlot]
-			if not equippedPerkId then
-				Library:Notify({ Title = "Auto Perk", Description = "No perk equipped in " .. tostring(perkSlot) .. " slot.", Time = 3 })
-				getgenv().AutoPerk = false
-				Toggles.AutoEnhanceToggle:SetValue(false)
-				return
-			end
-
-			local perkData = storagePerks[equippedPerkId]
-			if not perkData then
-				Library:Notify({ Title = "Auto Perk", Description = "Equipped perk data not found.", Time = 3 })
-				getgenv().AutoPerk = false
-				Toggles.AutoEnhanceToggle:SetValue(false)
-				return
-			end
-
-			local perkName = perkData.Name
-			local rarity = GetPerkRarity(perkName)
-			local currentLevel = perkData.Level or 0
-			local currentXP = perkData.XP or 0
-
-			while getgenv().AutoPerk do
-				if currentLevel >= 10 then
-					Library:Notify({ Title = "Auto Perk", Description = perkName .. " is already Level 10!", Time = 3 })
-					break
-				end
-
-				local selectedRarities = Options.SelectPerksDropdown.Value
-				local rarityPerks = {}
-				if selectedRarities then
-					for r, isActive in pairs(selectedRarities) do
-						if isActive then rarityPerks[r] = true end
-					end
-				end
-
-				local validPerks = {}
-				local totalXPGain = 0
-
-				for perkId, tbl in pairs(storagePerks) do
-					local r = GetPerkRarity(tbl.Name)
-					if perkId ~= equippedPerkId and rarityPerks[r] then
-						table.insert(validPerks, perkId)
-						totalXPGain = totalXPGain + GetPerkXP(r, math.max(tbl.Level or 0, 1))
-						if #validPerks >= 5 then break end
-					end
-				end
-
-				if #validPerks == 0 then
-					Library:Notify({ Title = "Auto Perk", Description = "No more food perks found.", Time = 3 })
-					break
-				end
-
-				if getRemote:InvokeServer("S_Equipment", "Enhance", equippedPerkId, validPerks) then
-					for _, id in ipairs(validPerks) do storagePerks[id] = nil end
-					currentXP = currentXP + totalXPGain
-					while currentLevel < 10 do
-						local thresholds = Perk_Level_XP[rarity]
-						if not thresholds then break end
-						local needed = thresholds[currentLevel + 1]
-						if not needed or currentXP < needed then break end
-						currentXP = currentXP - needed
-						currentLevel = currentLevel + 1
-					end
-					Library:Notify({ Title = "Enhanced: " .. perkName, Description = "Level " .. tostring(currentLevel) .. " (+" .. totalXPGain .. " XP)", Time = 1 })
-				else
-					continue
-				end
-				task.wait(0.5)
-			end
-
+		if not slot then
+			Library:Notify({ Title = "Auto Perk", Description = "Slot select nahi hua!", Time = 3 })
 			getgenv().AutoPerk = false
 			Toggles.AutoEnhanceToggle:SetValue(false)
-		end)
-	end
-end)
+			return
+		end
 
+		-- Data fetch with retry
+		local plrData = nil
+		for i = 1, 5 do
+			lastPlayerDataTime = 0
+			lastPlayerData = nil
+			local ok, result = pcall(GetPlayerData)
+			if ok and type(result) == "table" and result.Slots then
+				plrData = result
+				break
+			end
+			task.wait(1)
+		end
+
+		if not plrData or not plrData.Slots then
+			Library:Notify({ Title = "Auto Perk", Description = "Data fetch failed!", Time = 3 })
+			getgenv().AutoPerk = false
+			Toggles.AutoEnhanceToggle:SetValue(false)
+			return
+		end
+
+		local slotIndex = lp:GetAttribute("Slot")
+		if not slotIndex or not plrData.Slots[slotIndex] then
+			getgenv().AutoPerk = false
+			Toggles.AutoEnhanceToggle:SetValue(false)
+			return
+		end
+
+		local slotPerkData = plrData.Slots[slotIndex]
+		local storagePerks = {}
+		for id, val in pairs(slotPerkData.Perks.Storage) do
+			storagePerks[id] = val
+		end
+
+		local perkSlot = Options.PerkSlotDropdown.Value
+		local equippedPerkId = slotPerkData.Perks.Equipped[perkSlot]
+		if not equippedPerkId then
+			Library:Notify({ Title = "Auto Perk", Description = "No perk in " .. tostring(perkSlot) .. " slot!", Time = 3 })
+			getgenv().AutoPerk = false
+			Toggles.AutoEnhanceToggle:SetValue(false)
+			return
+		end
+
+		local perkData = storagePerks[equippedPerkId]
+		if not perkData then
+			Library:Notify({ Title = "Auto Perk", Description = "Equipped perk data not found!", Time = 3 })
+			getgenv().AutoPerk = false
+			Toggles.AutoEnhanceToggle:SetValue(false)
+			return
+		end
+
+		local perkName = perkData.Name
+		local rarity = GetPerkRarity(perkName)
+		local currentLevel = perkData.Level or 0
+		local currentXP = perkData.XP or 0
+
+		while getgenv().AutoPerk do
+			if currentLevel >= 10 then
+				Library:Notify({ Title = "Auto Perk", Description = perkName .. " Level 10 max!", Time = 3 })
+				break
+			end
+
+			local selectedRarities = Options.SelectPerksDropdown.Value
+			local rarityPerks = {}
+			if selectedRarities then
+				for r, isActive in pairs(selectedRarities) do
+					if isActive then rarityPerks[r] = true end
+				end
+			end
+
+			-- Build food perks as DICT {[id] = qty} — server expects this format
+			local foodPerkDict = {}
+			local totalXPGain = 0
+			local count = 0
+
+			for perkId, tbl in pairs(storagePerks) do
+				if count >= 5 then break end
+				local r = GetPerkRarity(tbl.Name)
+				if perkId ~= equippedPerkId and rarityPerks[r] then
+					foodPerkDict[perkId] = 1
+					totalXPGain = totalXPGain + GetPerkXP(r, math.max(tbl.Level or 0, 1))
+					count = count + 1
+				end
+			end
+
+			if count == 0 then
+				Library:Notify({ Title = "Auto Perk", Description = "No food perks found!", Time = 3 })
+				break
+			end
+
+			local ok, result = pcall(function()
+				return getRemote:InvokeServer("S_Equipment", "Enhance", equippedPerkId, foodPerkDict)
+			end)
+
+			if ok and result ~= nil and result ~= false then
+				-- Remove used food perks from storage
+				for id in pairs(foodPerkDict) do storagePerks[id] = nil end
+				currentXP = currentXP + totalXPGain
+				while currentLevel < 10 do
+					local thresholds = Perk_Level_XP[rarity]
+					if not thresholds then break end
+					local needed = thresholds[currentLevel + 1]
+					if not needed or currentXP < needed then break end
+					currentXP = currentXP - needed
+					currentLevel = currentLevel + 1
+				end
+				Library:Notify({ Title = "Enhanced: " .. perkName, Description = "Lv " .. currentLevel .. " (+" .. totalXPGain .. " XP)", Time = 1 })
+			else
+				Library:Notify({ Title = "Auto Perk", Description = "Enhance failed, stopping.", Time = 3 })
+				break
+			end
+			task.wait(0.5)
+		end
+
+		getgenv().AutoPerk = false
+		Toggles.AutoEnhanceToggle:SetValue(false)
+	end)
+end)
 UpgradesGroup:AddDropdown("PerkSlotDropdown", {
 	Values = {"Defense", "Support", "Family", "Extra", "Offense", "Body"},
 	Default = 6,
@@ -2732,53 +3010,63 @@ Toggles.AutoSkillTree:OnChanged(function()
 	if game.PlaceId ~= 14916516914 then return end
 
 	task.spawn(function()
-		while getgenv().AutoSkillTree do
-			local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
-			if not ok or not liveData or type(liveData) ~= "table" then task.wait(2) continue end
+		local slot = lp:GetAttribute("Slot")
+		if not slot then
+			getRemote:InvokeServer("Functions", "Select", "A")
+			local waited = 0
+			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
+			slot = lp:GetAttribute("Slot")
+		end
 
-			local slotIndex = liveData.Current_Slot
-			local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
-			if not slotData then task.wait(2) continue end
+		if not slot then
+			Library:Notify({ Title = "Skill Tree", Description = "Slot not Selected!", Time = 3 })
+			getgenv().AutoSkillTree = false
+			Toggles.AutoSkillTree:SetValue(false)
+			return
+		end
 
-			local weapon = slotData.Weapon
-			local middle = Options.MiddlePathDropdown.Value
-			local left   = Options.LeftPathDropdown.Value
-			local right  = Options.RightPathDropdown.Value
+		local weapon = Options.MiddlePathDropdown.Value == "Damage" and "Blades" or "Blades"
 
-			local middlePath = SkillPaths[weapon] and SkillPaths[weapon][middle]
-			local leftPath   = SkillPaths.Support[left]
-			local rightPath  = SkillPaths.Defense[right]
+		local middle = Options.MiddlePathDropdown.Value
+		local left   = Options.LeftPathDropdown.Value
+		local right  = Options.RightPathDropdown.Value
 
-			local p1 = Options.Priority1Dropdown.Value or "Middle"
-			local p2 = Options.Priority2Dropdown.Value or "Left"
-			local p3 = Options.Priority3Dropdown.Value or "None"
+		local middlePath = SkillPaths[weapon] and SkillPaths[weapon][middle]
+		local leftPath   = SkillPaths.Support[left]
+		local rightPath  = SkillPaths.Defense[right]
 
-			local pathMap = { Left = leftPath, Middle = middlePath, Right = rightPath }
-			local paths, used = {}, {}
+		local p1 = Options.Priority1Dropdown.Value or "Middle"
+		local p2 = Options.Priority2Dropdown.Value or "Left"
+		local p3 = Options.Priority3Dropdown.Value or "None"
 
-			local function addPath(p)
-				if not used[p] and pathMap[p] then
-					table.insert(paths, pathMap[p])
-					used[p] = true
-				end
+		local pathMap = { Left = leftPath, Middle = middlePath, Right = rightPath }
+		local paths, used = {}, {}
+		local function addPath(p)
+			if not used[p] and pathMap[p] then
+				table.insert(paths, pathMap[p])
+				used[p] = true
 			end
-			addPath(p1) addPath(p2) addPath(p3)
+		end
+		addPath(p1); addPath(p2); addPath(p3)
 
+		while getgenv().AutoSkillTree do
 			local anyUnlocked = false
 			for _, path in ipairs(paths) do
 				for _, skillId in ipairs(path) do
-					if table.find(slotData.Skills.Unlocked, skillId) then continue end
-					local success = getRemote:InvokeServer("S_Equipment", "Unlock", {skillId})
-					if success then
+					if not getgenv().AutoSkillTree then break end
+					local ok, result = pcall(function()
+						return getRemote:InvokeServer("S_Equipment", "Unlock", {skillId})
+					end)
+					if ok and result ~= nil and result ~= false then
 						anyUnlocked = true
-						Library:Notify({ Title = "Unlocked Skill", Description = "ID: " .. skillId, Time = 1 })
+						Library:Notify({ Title = "Skill Unlocked", Description = "ID: " .. skillId, Time = 1 })
 						task.wait(0.5)
 					end
 				end
 			end
 
 			if not anyUnlocked then
-				Library:Notify({ Title = "Skill Tree", Description = "All selected paths complete.", Time = 3 })
+				Library:Notify({ Title = "Skill Tree", Description = "All selected paths complete!", Time = 3 })
 				getgenv().AutoSkillTree = false
 				Toggles.AutoSkillTree:SetValue(false)
 				break
