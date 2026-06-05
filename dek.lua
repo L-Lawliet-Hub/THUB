@@ -122,6 +122,7 @@ getgenv().LastTitanWait = false
 getgenv().LastTitanWaitSecs = 60
 getgenv().OpenSecondChest = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
+getgenv().AdminConfig = false
 getgenv().HideDamageText = false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
@@ -1654,6 +1655,7 @@ local Window = Library:CreateWindow({
 local Tabs = {
 	Farm     = Window:AddTab("Main",     "house"),
 	Utility  = Window:AddTab("Utils",  "zap"),
+	Configs  = Window:AddTab("Configs", "settings-2"),
 	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
 	Global   = Window:AddTab("Central",   "globe"),
 	Stats    = Window:AddTab("Stats",    "activity"),
@@ -1672,6 +1674,9 @@ local SecurityGroup = Tabs.Utility:AddLeftGroupbox("Security", "shield-check")
 local BoostGroup    = Tabs.Utility:AddLeftGroupbox("Boosted Maps", "flame")
 local MasteryGroup  = Tabs.Utility:AddRightGroupbox("Mastery Farm", "award")
 local FeaturesGroup = Tabs.Utility:AddRightGroupbox("Extras", "menu")
+
+-- Configs tab
+local ConfigsGroup = Tabs.Configs:AddLeftGroupbox("Quick Configs", "zap")
 
 -- Upgrades tab
 local UpgradesGroup  = Tabs.Upgrades:AddLeftGroupbox("Upgrades", "trending-up")
@@ -2543,6 +2548,95 @@ task.defer(function()
 	local savedType = DropdownConfig._lastType or "Missions"
 	Options.StartTypeDropdown:SetValue(savedType)
 end)
+
+
+-- ==========================================
+-- CONFIGS TAB
+-- ==========================================
+
+ConfigsGroup:AddLabel("One-Click Config Presets")
+
+ConfigsGroup:AddToggle("AFKFarmingBreachToggle", {
+    Text = "AFK Farming (Breach)",
+    Default = false,
+    Tooltip = "Auto config: AFK Farming for breach mission"
+	})
+Toggles.AFKFarmingBreachToggle:OnChanged(function()
+    if Toggles.AFKFarmingBreachToggle.Value then
+        -- Farm Settings
+        pcall(function() Toggles.AutoKillToggle:SetValue(true) end)           -- Auto Farm ON
+        pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)          -- Auto Retry ON
+        pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)           -- Solo Only ON
+        pcall(function() Toggles.AutoRetryTimeoutToggle:SetValue(true) end)   -- Auto Fix Retry Bug ON
+        pcall(function() Options.RetryTimeoutSlider:SetValue(10) end)         -- Retry Timeout 10s
+        
+        -- Movement Settings
+        pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end) -- Teleport mode
+        pcall(function() Options.FloatHeightSlider:SetValue(170) end)          -- Height 170
+        pcall(function() Toggles.NoclipToggle:SetValue(true) end)             -- Noclip ON
+        
+        -- Combat Settings
+        pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)         -- Auto Refill ON
+        pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)         -- Auto Escape ON
+        pcall(function() Toggles.MultiHitToggle:SetValue(true) end)           -- Multi Hit ON
+        pcall(function() Options.MultiHitCountSlider:SetValue(4) end)         -- 4 Titans per hit
+        
+        -- Security
+        pcall(function() Options.FarmOptionsDropdown:SetValue({
+            ["Auto Execute"] = true,
+            ["Failsafe"] = true
+        }) end)
+        
+        -- Extras
+        pcall(function() Toggles.DeleteMapToggle:SetValue(true) end)          -- Delete Map ON
+        
+        -- Auto Start Settings
+        pcall(function() Options.StartTypeDropdown:SetValue("Missions") end)
+        pcall(function() Options.MissionMapDropdown:SetValue("Shiganshina") end)
+        pcall(function() Options.MissionObjectiveDropdown:SetValue("Breach") end)
+        pcall(function() Options.MissionDifficultyDropdown:SetValue("Hardest") end)
+        pcall(function() Options.ModifiersDropdown:SetValue({
+            ["No Perks"] = true,
+            ["No Skills"] = true,
+            ["No Memories"] = true,
+            ["Nightmare"] = true,
+            ["Oddball"] = true,
+            ["Injury Prone"] = true,
+            ["Chronic Injuries"] = true,
+            ["Fog"] = true,
+            ["Glass Cannon"] = true,
+            ["Time Trial"] = true
+        }) end)
+        pcall(function() Toggles.AutoStartToggle:SetValue(true) end)          -- Auto Start ON
+        
+        -- Auto Hide GUI
+        pcall(function() Toggles.AutoHideToggle:SetValue(true) end)
+        
+        Library:Notify({
+            Title = "⚙️ AFK Farming (Breach) Applied!",
+            Description = "Map: Shiganshina | Obj: Breach | Diff: Hardest\nAll 10 modifiers enabled!\nAuto farm + solo + retry active",
+            Time = 5
+        })
+        
+        -- Auto hide after 3 seconds
+        task.delay(3, function()
+            if Library then Library:Toggle(false) end
+        end)
+    end
+end)
+
+ConfigsGroup:AddDivider()
+ConfigsGroup:AddLabel("AFK Farming (Breach) Settings:")
+ConfigsGroup:AddLabel("• Map: Shiganshina - Breach")
+ConfigsGroup:AddLabel("• Difficulty: Hardest (Aberrant)")
+ConfigsGroup:AddLabel("• All 10 Modifiers ON")
+ConfigsGroup:AddLabel("• Teleport Mode, Height 170")
+ConfigsGroup:AddLabel("• Multi Hit x4, Solo Only")
+ConfigsGroup:AddLabel("• Auto Retry + Fix Retry Bug")
+ConfigsGroup:AddLabel("• Auto Refill + Escape")
+ConfigsGroup:AddLabel("• Noclip + Delete Map")
+ConfigsGroup:AddLabel("• Auto Execute + Failsafe")
+ConfigsGroup:AddLabel("• GUI Auto Hide after 3s")
 
 -- ==========================================
 -- UPGRADES TAB
