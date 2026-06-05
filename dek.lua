@@ -2648,6 +2648,9 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
         pcall(function() Options.FloatHeightSlider:SetValue(170) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+
+		-- Extras
+		pcall(function() Toggles.AutoSkipToggle:SetValue(true) end)
         
         -- Combat
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
@@ -2716,6 +2719,9 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
         pcall(function() Options.FloatHeightSlider:SetValue(310) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+
+	    -- Extras
+		pcall(function() Toggles.AutoSkipToggle:SetValue(true) end)
         
         -- Combat
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
