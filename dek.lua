@@ -2968,53 +2968,63 @@ Toggles.AutoSkillTree:OnChanged(function()
 	if game.PlaceId ~= 14916516914 then return end
 
 	task.spawn(function()
-		while getgenv().AutoSkillTree do
-			local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
-			if not ok or not liveData or type(liveData) ~= "table" then task.wait(2) continue end
+		local slot = lp:GetAttribute("Slot")
+		if not slot then
+			getRemote:InvokeServer("Functions", "Select", "A")
+			local waited = 0
+			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
+			slot = lp:GetAttribute("Slot")
+		end
 
-			local slotIndex = liveData.Current_Slot
-			local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
-			if not slotData then task.wait(2) continue end
+		if not slot then
+			Library:Notify({ Title = "Skill Tree", Description = "Slot not Selected!", Time = 3 })
+			getgenv().AutoSkillTree = false
+			Toggles.AutoSkillTree:SetValue(false)
+			return
+		end
 
-			local weapon = slotData.Weapon
-			local middle = Options.MiddlePathDropdown.Value
-			local left   = Options.LeftPathDropdown.Value
-			local right  = Options.RightPathDropdown.Value
+		local weapon = Options.MiddlePathDropdown.Value == "Damage" and "Blades" or "Blades"
 
-			local middlePath = SkillPaths[weapon] and SkillPaths[weapon][middle]
-			local leftPath   = SkillPaths.Support[left]
-			local rightPath  = SkillPaths.Defense[right]
+		local middle = Options.MiddlePathDropdown.Value
+		local left   = Options.LeftPathDropdown.Value
+		local right  = Options.RightPathDropdown.Value
 
-			local p1 = Options.Priority1Dropdown.Value or "Middle"
-			local p2 = Options.Priority2Dropdown.Value or "Left"
-			local p3 = Options.Priority3Dropdown.Value or "None"
+		local middlePath = SkillPaths[weapon] and SkillPaths[weapon][middle]
+		local leftPath   = SkillPaths.Support[left]
+		local rightPath  = SkillPaths.Defense[right]
 
-			local pathMap = { Left = leftPath, Middle = middlePath, Right = rightPath }
-			local paths, used = {}, {}
+		local p1 = Options.Priority1Dropdown.Value or "Middle"
+		local p2 = Options.Priority2Dropdown.Value or "Left"
+		local p3 = Options.Priority3Dropdown.Value or "None"
 
-			local function addPath(p)
-				if not used[p] and pathMap[p] then
-					table.insert(paths, pathMap[p])
-					used[p] = true
-				end
+		local pathMap = { Left = leftPath, Middle = middlePath, Right = rightPath }
+		local paths, used = {}, {}
+		local function addPath(p)
+			if not used[p] and pathMap[p] then
+				table.insert(paths, pathMap[p])
+				used[p] = true
 			end
-			addPath(p1) addPath(p2) addPath(p3)
+		end
+		addPath(p1); addPath(p2); addPath(p3)
 
+		while getgenv().AutoSkillTree do
 			local anyUnlocked = false
 			for _, path in ipairs(paths) do
 				for _, skillId in ipairs(path) do
-					if table.find(slotData.Skills.Unlocked, skillId) then continue end
-					local success = getRemote:InvokeServer("S_Equipment", "Unlock", {skillId})
-					if success then
+					if not getgenv().AutoSkillTree then break end
+					local ok, result = pcall(function()
+						return getRemote:InvokeServer("S_Equipment", "Unlock", {skillId})
+					end)
+					if ok and result ~= nil and result ~= false then
 						anyUnlocked = true
-						Library:Notify({ Title = "Unlocked Skill", Description = "ID: " .. skillId, Time = 1 })
+						Library:Notify({ Title = "Skill Unlocked", Description = "ID: " .. skillId, Time = 1 })
 						task.wait(0.5)
 					end
 				end
 			end
 
 			if not anyUnlocked then
-				Library:Notify({ Title = "Skill Tree", Description = "All selected paths complete.", Time = 3 })
+				Library:Notify({ Title = "Skill Tree", Description = "All selected paths complete!", Time = 3 })
 				getgenv().AutoSkillTree = false
 				Toggles.AutoSkillTree:SetValue(false)
 				break
