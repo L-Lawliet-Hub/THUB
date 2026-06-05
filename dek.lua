@@ -2556,87 +2556,216 @@ end)
 
 ConfigsGroup:AddLabel("One-Click Config Presets")
 
+-- ==========================================
+-- CONFIG 1: AFK Farming (Breach)
+-- ==========================================
 ConfigsGroup:AddToggle("AFKFarmingBreachToggle", {
     Text = "AFK Farming (Breach)",
     Default = false,
-    Tooltip = "Auto config: AFK Farming for breach mission"
-	})
+    Tooltip = "AFK Farming for breach"
+})
 Toggles.AFKFarmingBreachToggle:OnChanged(function()
     if Toggles.AFKFarmingBreachToggle.Value then
+        -- Turn OFF other configs
+        pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
+        pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+        
         -- Farm Settings
-        pcall(function() Toggles.AutoKillToggle:SetValue(true) end)           -- Auto Farm ON
-        pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)          -- Auto Retry ON
-        pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)           -- Solo Only ON
-        pcall(function() Toggles.AutoRetryTimeoutToggle:SetValue(true) end)   -- Auto Fix Retry Bug ON
-        pcall(function() Options.RetryTimeoutSlider:SetValue(10) end)         -- Retry Timeout 10s
+        pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
+        pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryTimeoutToggle:SetValue(true) end)
+        pcall(function() Options.RetryTimeoutSlider:SetValue(10) end)
         
-        -- Movement Settings
-        pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end) -- Teleport mode
-        pcall(function() Options.FloatHeightSlider:SetValue(170) end)          -- Height 170
-        pcall(function() Toggles.NoclipToggle:SetValue(true) end)             -- Noclip ON
+        -- Movement
+        pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
+        pcall(function() Options.FloatHeightSlider:SetValue(170) end)
+        pcall(function() Toggles.NoclipToggle:SetValue(true) end)
         
-        -- Combat Settings
-        pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)         -- Auto Refill ON
-        pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)         -- Auto Escape ON
-        pcall(function() Toggles.MultiHitToggle:SetValue(true) end)           -- Multi Hit ON
-        pcall(function() Options.MultiHitCountSlider:SetValue(4) end)         -- 4 Titans per hit
+        -- Combat
+        pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
+        pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(4) end)
         
         -- Security
         pcall(function() Options.FarmOptionsDropdown:SetValue({
-            ["Auto Execute"] = true,
-            ["Failsafe"] = true
+            ["Auto Execute"] = true, ["Failsafe"] = true
         }) end)
         
         -- Extras
-        pcall(function() Toggles.DeleteMapToggle:SetValue(true) end)          -- Delete Map ON
+        pcall(function() Toggles.DeleteMapToggle:SetValue(true) end)
         
-        -- Auto Start Settings
+        -- Auto Start - Breach
         pcall(function() Options.StartTypeDropdown:SetValue("Missions") end)
         pcall(function() Options.MissionMapDropdown:SetValue("Shiganshina") end)
         pcall(function() Options.MissionObjectiveDropdown:SetValue("Breach") end)
         pcall(function() Options.MissionDifficultyDropdown:SetValue("Hardest") end)
         pcall(function() Options.ModifiersDropdown:SetValue({
-            ["No Perks"] = true,
-            ["No Skills"] = true,
-            ["No Memories"] = true,
-            ["Nightmare"] = true,
-            ["Oddball"] = true,
-            ["Injury Prone"] = true,
-            ["Chronic Injuries"] = true,
-            ["Fog"] = true,
-            ["Glass Cannon"] = true,
+            ["No Perks"] = true, ["No Skills"] = true, ["No Memories"] = true,
+            ["Nightmare"] = true, ["Oddball"] = true, ["Injury Prone"] = true,
+            ["Chronic Injuries"] = true, ["Fog"] = true, ["Glass Cannon"] = true,
             ["Time Trial"] = true
         }) end)
-        pcall(function() Toggles.AutoStartToggle:SetValue(true) end)          -- Auto Start ON
+        pcall(function() Toggles.AutoStartToggle:SetValue(true) end)
         
-        -- Auto Hide GUI
         pcall(function() Toggles.AutoHideToggle:SetValue(true) end)
         
         Library:Notify({
             Title = "⚙️ AFK Farming (Breach) Applied!",
-            Description = "Map: Shiganshina | Obj: Breach | Diff: Hardest\nAll 10 modifiers enabled!\nAuto farm + solo + retry active",
+            Description = "Shiganshina | Breach | Hardest\nAll 10 Mods | Solo | Teleport",
             Time = 5
         })
         
-        -- Auto hide after 3 seconds
         task.delay(3, function()
             if Library then Library:Toggle(false) end
         end)
     end
 end)
 
+-- ==========================================
+-- CONFIG 2: AFK Farming (Defend)
+-- ==========================================
+ConfigsGroup:AddToggle("AFKFarmingDefendToggle", {
+    Text = "AFK Farming (Defend)",
+    Default = false,
+    Tooltip = "AFK Farming for Defend mission"
+})
+Toggles.AFKFarmingDefendToggle:OnChanged(function()
+    if Toggles.AFKFarmingDefendToggle.Value then
+        -- Turn OFF other configs
+        pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
+        pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+        
+        -- Farm Settings
+        pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
+        pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryTimeoutToggle:SetValue(true) end)
+        pcall(function() Options.RetryTimeoutSlider:SetValue(10) end)
+        
+        -- Movement
+        pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
+        pcall(function() Options.FloatHeightSlider:SetValue(170) end)
+        pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+        
+        -- Combat
+        pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
+        pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(4) end)
+        
+        -- Security
+        pcall(function() Options.FarmOptionsDropdown:SetValue({
+            ["Auto Execute"] = true, ["Failsafe"] = true
+        }) end)
+        
+        -- Extras
+        pcall(function() Toggles.DeleteMapToggle:SetValue(true) end)
+        
+        -- Auto Start - Defend
+        pcall(function() Options.StartTypeDropdown:SetValue("Missions") end)
+        pcall(function() Options.MissionMapDropdown:SetValue("Utgard") end)
+        pcall(function() Options.MissionObjectiveDropdown:SetValue("Defend") end)
+        pcall(function() Options.MissionDifficultyDropdown:SetValue("Hardest") end)
+        pcall(function() Options.ModifiersDropdown:SetValue({
+            ["No Perks"] = true, ["No Skills"] = true, ["No Memories"] = true,
+            ["Nightmare"] = true, ["Oddball"] = true, ["Injury Prone"] = true,
+            ["Chronic Injuries"] = true, ["Fog"] = true, ["Glass Cannon"] = true,
+            ["Time Trial"] = true
+        }) end)
+        pcall(function() Toggles.AutoStartToggle:SetValue(true) end)
+        
+        pcall(function() Toggles.AutoHideToggle:SetValue(true) end)
+        
+        Library:Notify({
+            Title = "⚙️ AFK Farming (Defend) Applied!",
+            Description = "Utgard | Defend | Hardest\nAll 10 Mods | Solo | Teleport",
+            Time = 5
+        })
+        
+        task.delay(3, function()
+            if Library then Library:Toggle(false) end
+        end)
+    end
+end)
+
+
+-- ==========================================
+-- CONFIG 3: AFK Farming (Stall)
+-- ==========================================
+ConfigsGroup:AddToggle("AFKFarmingStallToggle", {
+    Text = "AFK Farming (Stall)",
+    Default = false,
+    Tooltip = "AFK Faming for Stall mission"
+})
+Toggles.AFKFarmingStallToggle:OnChanged(function()
+    if Toggles.AFKFarmingStallToggle.Value then
+        -- Turn OFF other configs
+        pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
+        pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
+        
+        -- Farm Settings
+        pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
+        pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryTimeoutToggle:SetValue(true) end)
+        pcall(function() Options.RetryTimeoutSlider:SetValue(10) end)
+        
+        -- Movement
+        pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
+        pcall(function() Options.FloatHeightSlider:SetValue(310) end)
+        pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+        
+        -- Combat
+        pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
+        pcall(function() Toggles.MultiHitToggle:SetValue(false) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(2) end)
+        
+        -- Security
+        pcall(function() Options.FarmOptionsDropdown:SetValue({
+            ["Auto Execute"] = true, ["Failsafe"] = true
+        }) end)
+        
+        -- Extras
+        pcall(function() Toggles.DeleteMapToggle:SetValue(false) end)
+        
+        -- Auto Start - Stall
+        pcall(function() Options.StartTypeDropdown:SetValue("Missions") end)
+        pcall(function() Options.MissionMapDropdown:SetValue("Docks") end)
+        pcall(function() Options.MissionObjectiveDropdown:SetValue("Stall") end)
+        pcall(function() Options.MissionDifficultyDropdown:SetValue("Hardest") end)
+        pcall(function() Options.ModifiersDropdown:SetValue({
+            ["No Perks"] = true, ["No Skills"] = true, ["No Memories"] = true,
+            ["Nightmare"] = true, ["Oddball"] = true, ["Injury Prone"] = true,
+            ["Chronic Injuries"] = true, ["Fog"] = true, ["Glass Cannon"] = true,
+            ["Time Trial"] = true
+        }) end)
+        pcall(function() Toggles.AutoStartToggle:SetValue(true) end)
+        
+        pcall(function() Toggles.AutoHideToggle:SetValue(true) end)
+        
+        Library:Notify({
+            Title = "⚙️ AFK Farming (Stall) Applied!",
+            Description = "Docks | Stall | Hardest\nAll 10 Mods | Solo | Teleport",
+            Time = 5
+        })
+        
+        task.delay(3, function()
+            if Library then Library:Toggle(false) end
+        end)
+    end
+end)
+
+-- Configs Info
 ConfigsGroup:AddDivider()
-ConfigsGroup:AddLabel("AFK Farming (Breach) Settings:")
-ConfigsGroup:AddLabel("• Map: Shiganshina - Breach")
-ConfigsGroup:AddLabel("• Difficulty: Hardest (Aberrant)")
-ConfigsGroup:AddLabel("• All 10 Modifiers ON")
-ConfigsGroup:AddLabel("• Teleport Mode, Height 170")
-ConfigsGroup:AddLabel("• Multi Hit x4, Solo Only")
-ConfigsGroup:AddLabel("• Auto Retry + Fix Retry Bug")
-ConfigsGroup:AddLabel("• Auto Refill + Escape")
-ConfigsGroup:AddLabel("• Noclip + Delete Map")
-ConfigsGroup:AddLabel("• Auto Execute + Failsafe")
-ConfigsGroup:AddLabel("• GUI Auto Hide after 3s")
+ConfigsGroup:AddLabel("Configs Summary:")
+ConfigsGroup:AddLabel("• Breach: AFK Farming")
+ConfigsGroup:AddLabel("• Defend: AFK Farming")
+ConfigsGroup:AddLabel("• Stall: AFK Farming")
+ConfigsGroup:AddLabel("• All: Hardest + 10 Mods + Solo")
+
 
 -- ==========================================
 -- UPGRADES TAB
