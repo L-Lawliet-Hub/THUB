@@ -68,3 +68,31 @@ Group:AddButton({
 		end)
 	end,
 })
+
+-- Step 5 add karo existing debug script mein
+Group:AddButton({
+	Text = "5. Fetch Data Copy",
+	Func = function()
+		task.spawn(function()
+			local ok, result = pcall(function()
+				return getRemote:InvokeServer("Data", "Copy")
+			end)
+			statusLabel:SetText("ok=" .. tostring(ok) .. " type=" .. type(result))
+			if ok and type(result) == "table" then
+				local slot = lp:GetAttribute("Slot") or "A"
+				local slotData = result.Slots and result.Slots[slot]
+				local weapon = slotData and slotData.Weapon or "nil"
+				local upgrades = slotData and slotData.Upgrades and slotData.Upgrades[weapon]
+				if upgrades then
+					local msg = "Weapon=" .. weapon .. "\n"
+					for k, v in pairs(upgrades) do
+						msg = msg .. k .. "=" .. tostring(v) .. "\n"
+					end
+					statusLabel:SetText(msg)
+				else
+					statusLabel:SetText("No upgrades data! weapon=" .. weapon)
+				end
+			end
+		end)
+	end,
+})
