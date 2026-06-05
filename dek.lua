@@ -1333,13 +1333,29 @@ end
 
 local function ExecuteImmediateAutomation()
 	-- Auto Skip Cutscenes
-	if getgenv().AutoSkip then
-		local skip = INTERFACE:FindFirstChild("Skip")
-		if skip and skip.Visible then task.wait(0.5) end
-		if skip and skip.Visible then
-			UseButton(skip:FindFirstChild("Interact"))
-		end
-	end
+	-- Auto Skip Cutscenes + Auto TP to Refill
+if getgenv().AutoSkip then
+    local skip = INTERFACE:FindFirstChild("Skip")
+    
+    if skip and skip.Visible then
+        -- Skip button press
+        UseButton(skip:FindFirstChild("Interact"))
+        
+        -- Wait 0.4 seconds then TP to refill
+        task.wait(0.4)
+        
+        -- TP to Refill
+        pcall(function()
+            local refillPart = getRefillPart()
+            if refillPart then
+                local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    root.CFrame = refillPart.CFrame * CFrame.new(0, 5, 10)
+                end
+            end
+        end)
+    end
+end
 
 	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
 	-- Auto Open Chests (ULTRA FIX - forces both chests to open)
