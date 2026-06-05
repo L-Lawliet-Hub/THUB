@@ -1159,7 +1159,7 @@ local Perks = {
 	Secret = {
 		"Everlasting Flame","Heavenly Restriction","Adaptation","Maximum Firepower",
 		"Soulfeed","Kengo","Black Flash","Font of Inspiration","Explosive Fortune",
-		"Immortal","Art of War","Tatsujin","Founder's Blessing"
+		"Immortal","Art of War","Tatsujin","Founder's Blessing","Unwavering Belief"
 	}
 }
 
