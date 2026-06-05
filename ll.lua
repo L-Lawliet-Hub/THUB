@@ -96,3 +96,14 @@ Group:AddButton({
 		end)
 	end,
 })
+Group:AddButton({
+	Text = "6. Try Upgrade Crit_Damage",
+	Func = function()
+		task.spawn(function()
+			local ok, result = pcall(function()
+				return getRemote:InvokeServer("S_Equipment", "Upgrade", {"Crit_Damage"})
+			end)
+			statusLabel:SetText("ok=" .. tostring(ok) .. " result=" .. tostring(result))
+		end)
+	end,
+})
