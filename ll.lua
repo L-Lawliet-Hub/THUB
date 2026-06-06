@@ -1,5 +1,5 @@
 -- ==========================================
--- AUTO RETRY REMOTE TESTER
+-- SKIP CUTSCENE REMOTE TESTER
 -- ==========================================
 
 repeat task.wait() until game:IsLoaded()
@@ -7,154 +7,163 @@ repeat task.wait() until game:IsLoaded()
 local Players = game:GetService("Players")
 local lp = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local getRemote = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Remotes"):WaitForChild("GET")
 local postRemote = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Remotes"):WaitForChild("POST")
+local INTERFACE = lp:WaitForChild("PlayerGui"):WaitForChild("Interface")
 
--- Load Obsidian UI
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 
-local Window = Library:CreateWindow({ 
-    Title = "Retry Remote Tester", 
-    Center = true, 
-    AutoShow = true 
-})
-
-local Tab = Window:AddTab("Main", "refresh-cw")
-local Group = Tab:AddLeftGroupbox("Retry Tests", "play")
+local Window = Library:CreateWindow({ Title = "Skip Cutscene Tester", Center = true, AutoShow = true })
+local Tab = Window:AddTab("Main", "play")
+local Group = Tab:AddLeftGroupbox("Tests", "zap")
 
 local statusLabel = Group:AddLabel("Status: Ready")
 local resultLabel = Group:AddLabel("Result: -")
 
--- Test 1: GET Retry Add
+-- Get Start object (like your remote)
+local function getStartObject()
+    for _, Object in getnilinstances() do
+        if Object.Name == "Start" then
+            return Object
+        end
+    end
+    return nil
+end
+
+-- Test 1: Remote with Start object
 Group:AddButton({
-    Text = "Test 1: GET Retry Add",
+    Text = "Test 1: Remote + Start Object",
     Func = function()
         task.spawn(function()
-            statusLabel:SetText("Testing GET Retry Add...")
+            statusLabel:SetText("Finding Start object...")
             
-            local ok, result = pcall(function()
-                return getRemote:InvokeServer("Functions", "Retry", "Add")
-            end)
-            
-            statusLabel:SetText("ok=" .. tostring(ok))
-            resultLabel:SetText("Result: " .. tostring(result))
+            local startObj = getStartObject()
+            if startObj then
+                statusLabel:SetText("Start found! Sending...")
+                resultLabel:SetText("Start DebugId: " .. startObj:GetDebugId())
+                
+                local ok, err = pcall(function()
+                    postRemote:FireServer("Functions", "Finished", startObj)
+                end)
+                
+                statusLabel:SetText("Sent! ok=" .. tostring(ok))
+                resultLabel:SetText("Error: " .. tostring(err or "none"))
+            else
+                statusLabel:SetText("No Start object found!")
+                resultLabel:SetText("Cutscene maybe not active?")
+            end
         end)
     end,
-    Tooltip = "Test GET remote: Functions.Retry.Add"
+    Tooltip = "FireServer Functions.Finished with Start object"
 })
 
--- Test 2: GET Retry (no Add)
+-- Test 2: Remote without Start object
 Group:AddButton({
-    Text = "Test 2: GET Retry (no Add)",
+    Text = "Test 2: Remote (no Start)",
     Func = function()
         task.spawn(function()
-            statusLabel:SetText("Testing GET Retry...")
+            statusLabel:SetText("Sending without Start...")
             
-            local ok, result = pcall(function()
-                return getRemote:InvokeServer("Functions", "Retry")
+            local ok, err = pcall(function()
+                postRemote:FireServer("Functions", "Finished")
             end)
             
-            statusLabel:SetText("ok=" .. tostring(ok))
-            resultLabel:SetText("Result: " .. tostring(result))
+            statusLabel:SetText("Sent! ok=" .. tostring(ok))
+            resultLabel:SetText("Error: " .. tostring(err or "none"))
         end)
     end,
-    Tooltip = "Test GET remote: Functions.Retry"
+    Tooltip = "FireServer Functions.Finished without Start object"
 })
 
--- Test 3: GET Teleport.Retry
+-- Test 3: Button click
 Group:AddButton({
-    Text = "Test 3: GET Teleport Retry",
+    Text = "Test 3: Button Click",
     Func = function()
         task.spawn(function()
-            statusLabel:SetText("Testing Teleport.Retry...")
+            statusLabel:SetText("Looking for Skip button...")
             
-            local ok, result = pcall(function()
-                return getRemote:InvokeServer("Functions", "Teleport", "Retry")
-            end)
-            
-            statusLabel:SetText("ok=" .. tostring(ok))
-            resultLabel:SetText("Result: " .. tostring(result))
+            local skip = INTERFACE:FindFirstChild("Skip")
+            if skip and skip.Visible then
+                statusLabel:SetText("Skip button found! Clicking...")
+                
+                local interact = skip:FindFirstChild("Interact")
+                if interact then
+                    -- Simulate button click
+                    local vim = game:GetService("VirtualInputManager")
+                    local GuiService = game:GetService("GuiService")
+                    
+                    GuiService.SelectedObject = interact
+                    task.wait(0.05)
+                    vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                    vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                    
+                    resultLabel:SetText("Button clicked!")
+                else
+                    resultLabel:SetText("No Interact button!")
+                end
+            else
+                statusLabel:SetText("Skip not visible!")
+                resultLabel:SetText("Cutscene active: " .. tostring(lp:GetAttribute("Cutscene")))
+            end
         end)
     end,
-    Tooltip = "Test GET remote: Functions.Teleport.Retry"
+    Tooltip = "Click skip button via GUI"
 })
 
--- Test 4: POST Retry Add
+-- Test 4: Combined (Button + Remote)
 Group:AddButton({
-    Text = "Test 4: POST Retry Add",
+    Text = "Test 4: Combined Method",
     Func = function()
         task.spawn(function()
-            statusLabel:SetText("Testing POST Retry Add...")
+            statusLabel:SetText("Trying all methods...")
             
-            local ok, result = pcall(function()
-                postRemote:FireServer("Functions", "Retry", "Add")
-                return true
+            -- Method 1: Button
+            local skip = INTERFACE:FindFirstChild("Skip")
+            if skip and skip.Visible then
+                local interact = skip:FindFirstChild("Interact")
+                if interact then
+                    local vim = game:GetService("VirtualInputManager")
+                    local GuiService = game:GetService("GuiService")
+                    GuiService.SelectedObject = interact
+                    task.wait(0.05)
+                    vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                    vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                end
+            end
+            
+            task.wait(0.3)
+            
+            -- Method 2: Remote with Start
+            pcall(function()
+                local startObj = getStartObject()
+                if startObj then
+                    postRemote:FireServer("Functions", "Finished", startObj)
+                end
             end)
             
-            statusLabel:SetText("Sent!")
-            resultLabel:SetText("Result: " .. tostring(result))
-        end)
-    end,
-    Tooltip = "Test POST remote: Functions.Retry.Add"
-})
-
--- Test 5: POST Retry
-Group:AddButton({
-    Text = "Test 5: POST Retry",
-    Func = function()
-        task.spawn(function()
-            statusLabel:SetText("Testing POST Retry...")
-            
-            local ok, result = pcall(function()
-                postRemote:FireServer("Functions", "Retry")
-                return true
+            -- Method 3: Remote without Start
+            pcall(function()
+                postRemote:FireServer("Functions", "Finished")
             end)
             
-            statusLabel:SetText("Sent!")
-            resultLabel:SetText("Result: " .. tostring(result))
+            task.wait(0.5)
+            
+            -- Check result
+            local skipNow = INTERFACE:FindFirstChild("Skip")
+            if not skipNow or not skipNow.Visible then
+                statusLabel:SetText("✅ Skip successful!")
+                resultLabel:SetText("Cutscene skipped!")
+            else
+                statusLabel:SetText("❌ Skip may have failed")
+                resultLabel:SetText("Cutscene still visible")
+            end
         end)
     end,
-    Tooltip = "Test POST remote: Functions.Retry"
-})
-
--- Test 6: S_Missions Retry
-Group:AddButton({
-    Text = "Test 6: S_Missions Retry",
-    Func = function()
-        task.spawn(function()
-            statusLabel:SetText("Testing S_Missions Retry...")
-            
-            local ok, result = pcall(function()
-                return getRemote:InvokeServer("S_Missions", "Retry")
-            end)
-            
-            statusLabel:SetText("ok=" .. tostring(ok))
-            resultLabel:SetText("Result: " .. tostring(result))
-        end)
-    end,
-    Tooltip = "Test GET remote: S_Missions.Retry"
-})
-
--- Test 7: S_Missions Restart
-Group:AddButton({
-    Text = "Test 7: S_Missions Restart",
-    Func = function()
-        task.spawn(function()
-            statusLabel:SetText("Testing S_Missions Restart...")
-            
-            local ok, result = pcall(function()
-                return getRemote:InvokeServer("S_Missions", "Restart")
-            end)
-            
-            statusLabel:SetText("ok=" .. tostring(ok))
-            resultLabel:SetText("Result: " .. tostring(result))
-        end)
-    end,
-    Tooltip = "Test GET remote: S_Missions.Restart"
+    Tooltip = "Try button + both remote methods together"
 })
 
 -- Info
 Group:AddDivider()
-Group:AddLabel("Run tests when stuck on reward screen")
-Group:AddLabel("Click Retry button on rewards to trigger")
+Group:AddLabel("Run during an active cutscene")
+Group:AddLabel("Click Test 4 for best results")
+Group:AddLabel("Check which method works!")
