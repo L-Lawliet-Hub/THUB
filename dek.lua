@@ -212,7 +212,7 @@ end)
 getgenv().AutoFarmConfig = {
 	AttackCooldown = 1,
 	ReloadCooldown = 1.2,
-	AttackRange = 800,
+	AttackRange = 2000,
 	MoveSpeed = 400,
 	HeightOffset = 250,
 	MovementMode = "Hover",
