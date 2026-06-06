@@ -1333,22 +1333,37 @@ end
 
 local function ExecuteImmediateAutomation()
 	
--- Auto Skip Cutscenes (WORKING REMOTE)
+-- Auto Skip Cutscenes (ALL METHODS)
 if getgenv().AutoSkip then
-    local skip = INTERFACE:FindFirstChild("Skip")
-    
-    if skip and skip.Visible then
-        -- Method 1: Skip button
-        UseButton(skip:FindFirstChild("Interact"))
-        
-        -- Method 2: Remote skip (confirmed working)
-        pcall(function()
-            postRemote:FireServer("Functions", "Finished", skip:FindFirstChild("Start"))
-        end)
-        
-        -- Wait 0.4 seconds after skip
-        task.wait(0.4)
-    end
+    task.spawn(function()
+        for i = 1, 10 do
+            if not getgenv().AutoSkip then break end
+            
+            pcall(function()
+                -- Skip button
+                local skip = INTERFACE:FindFirstChild("Skip")
+                if skip and skip.Visible then
+                    UseButton(skip:FindFirstChild("Interact"))
+                end
+            end)
+            
+            pcall(function()
+                -- Remote 1
+                postRemote:FireServer("Functions", "Finished")
+            end)
+            
+            pcall(function()
+                -- Remote 2  
+                getRemote:InvokeServer("Cutscene", "Skip")
+            end)
+            
+            -- Check if skip worked
+            local skip = INTERFACE:FindFirstChild("Skip")
+            if not skip or not skip.Visible then break end
+            
+            task.wait(0.3)
+        end
+    end)
 end
 
 	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
