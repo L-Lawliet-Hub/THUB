@@ -110,7 +110,6 @@ getgenv().AutoSkip = false
 getgenv().AutoPrestige = false
 getgenv().AutoFailsafe = false
 getgenv().AutoExecute = false
-getgenv().ForceRetry = false
 getgenv().RewardWebhook = false
 getgenv().MythicalFamilyWebhook = false
 getgenv().AutoReturnLobby = false
@@ -894,8 +893,7 @@ local gamesPlayed = tonumber(readfile(path))
 
 local webhook
 
-local MAX_REWARD_WAIT = 8
-local rewardGuiStartTime = nil
+
 
 -- ==========================================
 -- REWARDS LISTENER
@@ -903,14 +901,7 @@ local rewardGuiStartTime = nil
 
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
-		if not rewards.Visible then 
-			-- Reward screen closed, reset stuck timer
-			rewardGuiStartTime = nil
-			return 
-		end
-		
-		-- Start stuck detection timer when reward screen opens
-		rewardGuiStartTime = os.clock()
+		if not rewards.Visible then return end
 
 		-- Reset mission start timer
 		getgenv()._missionStartTime = nil
@@ -1375,18 +1366,14 @@ if getgenv().AutoChest then
     end
 end
 
-	-- Auto Retry (US Suite logic)
+	-- Auto Retry (PURE REMOTE - No Button)
 	if getgenv().AutoRetry then
 		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
 		if rewardsGui and rewardsGui.Visible then
-			local retryBtn = rewardsGui:FindFirstChild("Main")
-				and rewardsGui.Main:FindFirstChild("Info")
-				and rewardsGui.Main.Info:FindFirstChild("Main")
-				and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
-				and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
-			if retryBtn then 
-        task.wait(1)
-        UseButton(retryBtn) end
+			task.wait(1)
+			pcall(function()
+				getRemote:InvokeServer("Functions", "Retry", "Add")
+			end)
 		end
 	end
 end
@@ -1782,37 +1769,6 @@ MainGroup:AddToggle("AutoRetryToggle", {
 Toggles.AutoRetryToggle:OnChanged(function()
 	getgenv().AutoRetry = Toggles.AutoRetryToggle.Value
 	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
-end)
-
-MainGroup:AddToggle("AutoRetryTimeoutToggle", {
-	Text = "Auto Fix Retry Bug",
-	Default = false,
-	Tooltip = "If reward screen is stuck for more than the set timeout, auto return to lobby"
-})
-Toggles.AutoRetryTimeoutToggle:OnChanged(function()
-	getgenv().AutoRetryTimeout = Toggles.AutoRetryTimeoutToggle.Value
-end)
-
-MainGroup:AddSlider("RetryTimeoutSlider", {
-	Text = "Retry Timeout (seconds)",
-	Default = 8,
-	Min = 5,
-	Max = 30,
-	Rounding = 0,
-	Tooltip = "Max time to wait on reward screen before force returning to lobby"
-})
-Options.RetryTimeoutSlider:OnChanged(function()
-	MAX_REWARD_WAIT = Options.RetryTimeoutSlider.Value
-end)
-
-MainGroup:AddToggle("ForceRetryToggle", {
-    Text = "Force Retry",
-    Default = false,
-    Tooltip = "Forcefully retry using 3 methods if normal retry fails"
-})
-Toggles.ForceRetryToggle:OnChanged(function()
-    getgenv().ForceRetry = Toggles.ForceRetryToggle.Value
-    if getgenv().ForceRetry then retryAttempts = 0 end
 end)
 
 MainGroup:AddToggle("SoloOnlyToggle", {
@@ -2585,10 +2541,7 @@ Toggles.AFKFarmingBreachToggle:OnChanged(function()
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
         pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
-		pcall(function() Toggles.ForceRetryToggle:SetValue(true) end)
         pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
-        pcall(function() Toggles.AutoRetryTimeoutToggle:SetValue(true) end)
-        pcall(function() Options.RetryTimeoutSlider:SetValue(10) end)
         
         -- Movement
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
@@ -2653,10 +2606,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
         pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
-		pcall(function() Toggles.ForceRetryToggle:SetValue(true) end)
         pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
-        pcall(function() Toggles.AutoRetryTimeoutToggle:SetValue(true) end)
-        pcall(function() Options.RetryTimeoutSlider:SetValue(10) end)
         
         -- Movement
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
@@ -2725,10 +2675,7 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
         pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
-		pcall(function() Toggles.ForceRetryToggle:SetValue(true) end)
         pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
-        pcall(function() Toggles.AutoRetryTimeoutToggle:SetValue(true) end)
-        pcall(function() Options.RetryTimeoutSlider:SetValue(10) end)
         
         -- Movement
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
@@ -3506,180 +3453,6 @@ local function sendLog()
     })
 end
 
--- ==========================================
--- FORCE RETRY SYSTEM
--- ==========================================
-
-
-local retryAttempts = 0
-local MAX_FORCE_RETRIES = 3
-
--- Method 1: Direct remote call
-local function forceRetryRemote()
-    pcall(function()
-        getRemote:InvokeServer("Functions", "Teleport", "Retry")
-    end)
-end
-
--- Method 2: Recreate same mission
-local function forceRetryRecreate()
-    pcall(function()
-        local missionType = Options.StartTypeDropdown.Value or "Missions"
-        local mapName = Options.MissionMapDropdown.Value or "Shiganshina"
-        local objective = Options.MissionObjectiveDropdown.Value or "Skirmish"
-        local difficulty = Options.MissionDifficultyDropdown.Value or "Hardest"
-        
-        getRemote:InvokeServer("S_Missions", "Leave")
-        task.wait(1)
-        
-        getRemote:InvokeServer("S_Missions", "Create", {
-            Difficulty = difficulty,
-            Type = missionType,
-            Name = mapName,
-            Objective = objective
-        })
-        task.wait(1)
-        
-        if Options.ModifiersDropdown.Value then
-            for modName, isActive in pairs(Options.ModifiersDropdown.Value) do
-                if isActive then
-                    getRemote:InvokeServer("S_Missions", "Modify", modName)
-                end
-            end
-        end
-        
-        getRemote:InvokeServer("S_Missions", "Start")
-    end)
-end
-
--- Method 3: Return lobby
-local function forceRetryLobby()
-    pcall(function()
-        getRemote:InvokeServer("Functions", "Teleport", "Lobby")
-        task.wait(2)
-        TeleportService:Teleport(14916516914, lp)
-    end)
-end
-
-local function attemptForceRetry()
-    retryAttempts = retryAttempts + 1
-    
-    Library:Notify({
-        Title = "Force Retry",
-        Description = "Attempt " .. retryAttempts .. "/" .. MAX_FORCE_RETRIES,
-        Time = 3
-    })
-    
-    forceRetryRemote()
-    task.wait(3)
-    
-    if game.PlaceId ~= 14916516914 and workspace:FindFirstChild("Unclimbable") then
-        retryAttempts = 0
-        return true
-    end
-    
-    if retryAttempts <= MAX_FORCE_RETRIES then
-        forceRetryRecreate()
-        task.wait(5)
-        
-        if game.PlaceId ~= 14916516914 and workspace:FindFirstChild("Unclimbable") then
-            retryAttempts = 0
-            return true
-        end
-    end
-    
-    if retryAttempts <= MAX_FORCE_RETRIES then
-        forceRetryLobby()
-        retryAttempts = 0
-    end
-    
-    return false
-end
-
--- Force Retry Monitor
-task.spawn(function()
-    while true do
-        if getgenv().ForceRetry then
-            pcall(function()
-                if rewards and rewards.Visible and rewardGuiStartTime then
-                    local timeOnScreen = os.clock() - rewardGuiStartTime
-                    if timeOnScreen > 15 then
-                        attemptForceRetry()
-                    end
-                end
-                
-                if game.PlaceId ~= 14916516914 then
-                    if not workspace:FindFirstChild("Unclimbable") and not workspace:FindFirstChild("Titans") then
-                        task.wait(10)
-                        if not workspace:FindFirstChild("Unclimbable") then
-                            attemptForceRetry()
-                        end
-                    end
-                end
-            end)
-        end
-        task.wait(5)
-    end
-end)
 
 
 sendLog()
-
--- ==========================================
--- REWARD GUI STUCK DETECTION
--- ==========================================
-
-task.spawn(function()
-	while true do
-		task.wait(0.5)
-		
-		-- Skip if toggle is OFF
-		if not getgenv().AutoRetryTimeout then continue end
-		
-		if not rewards then continue end
-		
-		-- If reward screen is visible and timer started
-		if rewards.Visible and rewardGuiStartTime then
-			local timeOnScreen = os.clock() - rewardGuiStartTime
-			
-			-- Timeout exceeded, fix the bug
-			if timeOnScreen > MAX_REWARD_WAIT then
-				Library:Notify({
-					Title = "Auto Retry Bug Detected!",
-					Description = "Reward stuck for " .. math.floor(timeOnScreen) .. "s. Returning to lobby...",
-					Time = 5
-				})
-				
-				-- Save current stats
-				SaveSessionStats()
-				
-				-- Stop farming
-				if AutoFarm._running then
-					AutoFarm:Stop()
-				end
-				
-				-- Return to lobby via remote
-				task.spawn(function()
-					pcall(function() 
-						getRemote:InvokeServer("Functions", "Teleport", "Lobby") 
-					end)
-				end)
-				
-				task.wait(1)
-				
-				-- Force teleport if still in game
-				if game.PlaceId ~= 14916516914 then
-					pcall(function() 
-						TeleportService:Teleport(14916516914, Players.LocalPlayer) 
-					end)
-				end
-				
-				-- Reset timer
-				rewardGuiStartTime = nil
-			end
-		else
-			-- Reward screen closed, reset timer
-			rewardGuiStartTime = nil
-		end
-	end
-end)
