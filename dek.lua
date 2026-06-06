@@ -1082,8 +1082,8 @@ if rewards then
 								"User: " .. lp.Name .. "\n" ..
 								"Games Played: " .. tostring(gamesPlayed) .. "\n" ..
 								"Executor: " .. executor .. "\n" ..
-								"Blacklisted: " .. (bl and "YES ❌" or "No ✅") .. "\n" ..
-								"Exploiter: " .. (ex and "YES ❌" or "No ✅")) .. "\n" ..
+								"Blacklisted: " .. (bl and "YES ❌" or "No ✅") ..
+				              "\nExploiter: " .. (ex and "YES ❌" or "No ✅") ..
 								"\n```",
 							inline = true
 						},
