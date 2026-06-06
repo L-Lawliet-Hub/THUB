@@ -211,8 +211,8 @@ end)
 
 getgenv().AutoFarmConfig = {
 	AttackCooldown = 1,
-	ReloadCooldown = 1.2,
-	AttackRange = 2000,
+	ReloadCooldown = 1,
+	AttackRange = 5000,
 	MoveSpeed = 400,
 	HeightOffset = 250,
 	MovementMode = "Hover",
@@ -1061,6 +1061,24 @@ if rewards then
 		local hasSpecial = data.Special and next(data.Special) ~= nil
 
 		if webhook and webhook ~= "" then
+			-- Fresh ban check: attribute can be bool true, string "true", or number 1
+			local function isFlagged(attr)
+				local v = lp:GetAttribute(attr)
+				return v == true or v == "true" or v == 1
+			end
+			local isBlacklisted = isFlagged("Blacklisted")
+			local isExploiter   = isFlagged("Exploiter")
+			-- Fallback via server data if both still false
+			if not isBlacklisted and not isExploiter then
+				pcall(function()
+					local pd = GetPlayerData()
+					if pd then
+						isBlacklisted = pd.Blacklisted == true or pd.Blacklisted == "true" or pd.Banned == true
+						isExploiter   = pd.Exploiter  == true or pd.Exploiter  == "true"
+					end
+				end)
+			end
+
 			local payload = {
 				content = hasSpecial and "MYTHICAL DROP! @everyone" or nil,
 				embeds = {{
@@ -1073,8 +1091,8 @@ if rewards then
 								"User: " .. lp.Name .. "\n" ..
 								"Games Played: " .. tostring(gamesPlayed) .. "\n" ..
 								"Executor: " .. executor .. "\n" ..
-								"Blacklisted: " .. (lp:GetAttribute("Blacklisted") == true and "YES ❌" or "No ✅") .. "\n" ..
-								"Exploiter: " .. (lp:GetAttribute("Exploiter") == true and "YES ❌" or "No ✅") .. "\n" ..
+								"Blacklisted: " .. (isBlacklisted and "YES ❌" or "No ✅") .. "\n" ..
+								"Exploiter: "   .. (isExploiter   and "YES ❌" or "No ✅") .. "\n" ..
 								"\n```",
 							inline = true
 						},
@@ -1323,7 +1341,6 @@ local function setupAutoExecute()
 end
 
 local function ExecuteImmediateAutomation()
-	
 	-- Auto Skip Cutscenes (BUTTON ONLY)
 if getgenv().AutoSkip then
     local skip = INTERFACE:FindFirstChild("Skip")
