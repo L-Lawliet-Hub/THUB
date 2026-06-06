@@ -123,6 +123,7 @@ getgenv().LastTitanWaitSecs = 60
 getgenv().OpenSecondChest = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
 getgenv().AdminConfig = false
+getgenv().HideDamageText = false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
 getgenv().CurrentStatusLabel = nil
@@ -892,8 +893,7 @@ local gamesPlayed = tonumber(readfile(path))
 
 local webhook
 
-local MAX_REWARD_WAIT = 8
-local rewardGuiStartTime = nil
+
 
 -- ==========================================
 -- REWARDS LISTENER
@@ -901,12 +901,8 @@ local rewardGuiStartTime = nil
 
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
-		if not rewards.Visible then 
-			
-			return 
-		end
-		
-	
+		if not rewards.Visible then return end
+
 		-- Reset mission start timer
 		getgenv()._missionStartTime = nil
 
@@ -1371,14 +1367,15 @@ if getgenv().AutoChest then
 end
 
 	-- Auto Retry (PURE REMOTE - No Button)
-if getgenv().AutoRetry then
-    local rewardsGui = INTERFACE:FindFirstChild("Rewards")
-    if rewardsGui and rewardsGui.Visible then
-        task.wait(1)
-        pcall(function()
-            getRemote:InvokeServer("Functions", "Retry", "Add")
-        end)
-    end
+	if getgenv().AutoRetry then
+		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
+		if rewardsGui and rewardsGui.Visible then
+			task.wait(1)
+			pcall(function()
+				getRemote:InvokeServer("Functions", "Retry", "Add")
+			end)
+		end
+	end
 end
 
 local function roll(targets, rarities)
@@ -1773,8 +1770,6 @@ Toggles.AutoRetryToggle:OnChanged(function()
 	getgenv().AutoRetry = Toggles.AutoRetryToggle.Value
 	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
 end)
-
-
 
 MainGroup:AddToggle("SoloOnlyToggle", {
 	Text = "Solo Only",
@@ -2546,9 +2541,7 @@ Toggles.AFKFarmingBreachToggle:OnChanged(function()
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
         pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
-		
         pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
-        
         
         -- Movement
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
@@ -2613,9 +2606,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
         pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
-		
         pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
-    
         
         -- Movement
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
@@ -2684,9 +2675,8 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
         pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
-		
         pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
-       
+        
         -- Movement
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
         pcall(function() Options.FloatHeightSlider:SetValue(310) end)
