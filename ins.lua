@@ -210,9 +210,9 @@ lp.CharacterAdded:Connect(function()
 end)
 
 getgenv().AutoFarmConfig = {
-	AttackCooldown = 0.8,
-	ReloadCooldown = 0.8,
-	AttackRange = 1500,
+	AttackCooldown = 1,
+	ReloadCooldown = 1,
+	AttackRange = 150,
 	MoveSpeed = 400,
 	HeightOffset = 250,
 	MovementMode = "Hover",
@@ -1913,6 +1913,17 @@ Toggles.AutoEscapeToggle:OnChanged(function()
 end)
 
 CombatGroup:AddDivider()
+CombatGroup:AddSlider("AttackRangeSlider", {
+    Text = "Attack Range",
+    Default = 150,
+    Min = 50,
+    Max = 500,
+    Rounding = 0,
+    Tooltip = "Maximum distance to attack titans from"
+})
+Options.AttackRangeSlider:OnChanged(function()
+    getgenv().AutoFarmConfig.AttackRange = Options.AttackRangeSlider.Value
+end)
 
 CombatGroup:AddToggle("MultiHitToggle", {
 	Text = "Multi Hit",
