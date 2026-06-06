@@ -1084,6 +1084,7 @@ if rewards then
 								"Executor: " .. executor .. "\n" ..
 								"Blacklisted: " .. (lp:GetAttribute("Blacklisted") == true and "YES ❌" or "No ✅") .. "\n" ..
 								"Exploiter: " .. (lp:GetAttribute("Exploiter") == true and "YES ❌" or "No ✅") .. "\n" ..
+								"⚠️ Check Time: " .. os.date("%H:%M:%S") .. "\n" ..
 								"\n```",
 							inline = true
 						},
