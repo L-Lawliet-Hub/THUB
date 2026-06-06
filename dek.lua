@@ -1323,14 +1323,23 @@ local function setupAutoExecute()
 end
 
 local function ExecuteImmediateAutomation()
-	-- Auto Skip Cutscenes
-	if getgenv().AutoSkip then
-		local skip = INTERFACE:FindFirstChild("Skip")
-		if skip and skip.Visible then task.wait(0.5) end
-		if skip and skip.Visible then
-			UseButton(skip:FindFirstChild("Interact"))
-		end
-	end
+	
+	-- Auto Skip Cutscenes (BUTTON ONLY)
+if getgenv().AutoSkip then
+    local skip = INTERFACE:FindFirstChild("Skip")
+    
+    if skip and skip.Visible then
+        -- Try button multiple times for reliability
+        for i = 1, 5 do
+            local interact = skip:FindFirstChild("Interact")
+            if interact then
+                UseButton(interact)
+            end
+            task.wait(0.3)
+            if not skip.Visible then break end
+        end
+    end
+end
 
 	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
 	-- Auto Open Chests (ULTRA FIX - forces both chests to open)
