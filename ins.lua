@@ -210,9 +210,9 @@ lp.CharacterAdded:Connect(function()
 end)
 
 getgenv().AutoFarmConfig = {
-	AttackCooldown = 1,
-	ReloadCooldown = 1,
-	AttackRange = 150,
+	AttackCooldown = 0.8,
+	ReloadCooldown = 0.8,
+	AttackRange = 1500,
 	MoveSpeed = 400,
 	HeightOffset = 250,
 	MovementMode = "Hover",
@@ -1073,8 +1073,6 @@ if rewards then
 								"User: " .. lp.Name .. "\n" ..
 								"Games Played: " .. tostring(gamesPlayed) .. "\n" ..
 								"Executor: " .. executor .. "\n" ..
-								"Blacklisted: " .. (lp:GetAttribute("Blacklisted") == true and "YES ❌" or "No ✅") .. "\n" ..
-								"Exploiter: " .. (lp:GetAttribute("Exploiter") == true and "YES ❌" or "No ✅") .. "\n" ..
 								"\n```",
 							inline = true
 						},
@@ -1323,15 +1321,35 @@ local function setupAutoExecute()
 end
 
 local function ExecuteImmediateAutomation()
-	-- Auto Skip Cutscenes
-	if getgenv().AutoSkip then
-		local skip = INTERFACE:FindFirstChild("Skip")
-		if skip and skip.Visible then task.wait(0.5) end
-		if skip and skip.Visible then
-			UseButton(skip:FindFirstChild("Interact"))
-		end
-	end
-
+	
+-- Auto Skip Cutscenes + Always TP to Refill
+if getgenv().AutoSkip then
+    local skip = INTERFACE:FindFirstChild("Skip")
+    
+    if skip and skip.Visible then
+        -- Click skip multiple times
+        for i = 1, 5 do
+            local interact = skip:FindFirstChild("Interact")
+            if interact then
+                UseButton(interact)
+            end
+            task.wait(0.3)
+            if not skip.Visible then break end
+        end
+    end
+    
+    -- ✅ ALWAYS TP to refill (chahe skip tha ya nahi)
+    task.wait(0.5)
+    pcall(function()
+        local refillPart = getCachedRefillPart()
+        if refillPart and refillPart.Parent then
+            local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                root.CFrame = refillPart.CFrame * CFrame.new(0, 5, 10)
+            end
+        end
+    end)
+end
 	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
 	-- Auto Open Chests (ULTRA FIX - forces both chests to open)
 if getgenv().AutoChest then
