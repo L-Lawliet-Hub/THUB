@@ -1077,17 +1077,16 @@ if rewards then
 					color = hasSpecial and 16711680 or 2829617,
 					fields = {
 
-local missionMap = workspace:GetAttribute("Type") or "Unknown"
-local missionObj = workspace:GetAttribute("Objective") or "Unknown"
-local missionDiff = workspace:GetAttribute("Difficulty") or "Unknown"
-
 						{
 							name = "Information",
 							value = "```\n" ..
 								"User: " .. lp.Name .. "\n" ..
 								"Games Played: " .. tostring(gamesPlayed) .. "\n" ..
 								"Executor: " .. executor .. "\n" ..
-								"Mission: " .. missionMap .. " | " .. missionObj .. " | " .. missionDiff .. "\n" ..
+								"Map: " .. (mapData and mapData.Map and mapData.Map.Name or "Unknown") .. "\n" ..  -- ✅ ADD
+        "Type: " .. (mapData and mapData.Map and mapData.Map.Type or "Unknown") .. "\n" ..  -- ✅ ADD
+        "Objective: " .. (mapData and mapData.Map and mapData.Map.Objective or "Unknown") .. "\n" ..  -- ✅ ADD
+        "Difficulty: " .. (mapData and mapData.Map and mapData.Map.Difficulty or "Unknown") .. "\n" 
 								"\n```",
 							inline = true
 						},
