@@ -1084,7 +1084,6 @@ if rewards then
 								"Executor: " .. executor .. "\n" ..
 								"Blacklisted: " .. (lp:GetAttribute("Blacklisted") == true and "YES ❌" or "No ✅") .. "\n" ..
 								"Exploiter: " .. (lp:GetAttribute("Exploiter") == true and "YES ❌" or "No ✅") .. "\n" ..
-								"⚠️ Check Time: " .. os.date("%H:%M:%S") .. "\n" ..
 								"\n```",
 							inline = true
 						},
@@ -1333,29 +1332,14 @@ local function setupAutoExecute()
 end
 
 local function ExecuteImmediateAutomation()
-	
--- Auto Skip Cutscenes (ALL METHODS)
-if getgenv().AutoSkip then
-    task.spawn(function()
-        for i = 1, 10 do
-            if not getgenv().AutoSkip then break end
-            
-            
-            pcall(function()
-                -- Remote 1
-                postRemote:FireServer("Functions", "Finished")
-            end)
-            
-            pcall(function()
-                -- Remote 2  
-                getRemote:InvokeServer("Cutscene", "Skip")
-            end)
-
-            
-            task.wait(0.3)
-        end
-    end)
-end
+	-- Auto Skip Cutscenes
+	if getgenv().AutoSkip then
+		local skip = INTERFACE:FindFirstChild("Skip")
+		if skip and skip.Visible then task.wait(0.5) end
+		if skip and skip.Visible then
+			UseButton(skip:FindFirstChild("Interact"))
+		end
+	end
 
 	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
 	-- Auto Open Chests (ULTRA FIX - forces both chests to open)
