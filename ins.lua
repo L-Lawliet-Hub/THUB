@@ -1237,7 +1237,8 @@ local Missions = {
 	["Docks"] = { "Skirmish", "Stall", "Random" },
 	["Stohess"] = { "Skirmish", "Random" },
 	["Chapel"] = {"Skirmish", "Random"},
-	["Colossal"] = { "Random" }
+	["Colossal"] = { "Random" },
+	["Waves"] = { "Waves" }
 }
 
 local RaidObjectives = {
@@ -1663,6 +1664,7 @@ local Tabs = {
 	Utility  = Window:AddTab("Utils",  "zap"),
 	Configs  = Window:AddTab("Configs", "settings-2"),
 	Upgrades = Window:AddTab("Upgrades", "trending-up"),
+	Waves    = Window:AddTab("Waves", "waves-horizontal"),
 	Global   = Window:AddTab("Central",   "globe"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
@@ -1687,6 +1689,10 @@ local ConfigsGroup = Tabs.Configs:AddLeftGroupbox("Quick Configs", "zap")
 -- Upgrades tab
 local UpgradesGroup  = Tabs.Upgrades:AddLeftGroupbox("Upgrades", "trending-up")
 local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch")
+
+-- Waves tab
+local WavesFarmGroup = Tabs.Waves:AddLeftGroupbox("Waves Farm", "flame")
+local WavesSettingsGroup = Tabs.Waves:AddRightGroupbox("Features", "menu")
 
 -- Global tab
 local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll", "shuffle")
@@ -1869,6 +1875,44 @@ MovementGroup:AddToggle("NoclipToggle", {
 Toggles.NoclipToggle:OnChanged(function()
 	setNoclip(Toggles.NoclipToggle.Value)
 end)
+
+-- ==========================================
+-- AUTO DOUBLE JUMP BOOST (Auto Space Press)
+-- ==========================================
+
+getgenv().DoubleJumpBoost = false
+
+MovementGroup:AddToggle("DoubleJumpToggle", {
+    Text = "Auto Jump Boost(For safety)",
+    Default = false,
+    Tooltip = "Auto press space twice every 4s for speed boost"
+})
+Toggles.DoubleJumpToggle:OnChanged(function()
+    getgenv().DoubleJumpBoost = Toggles.DoubleJumpToggle.Value
+    
+    if getgenv().DoubleJumpBoost then
+        task.spawn(function()
+            local vim = game:GetService("VirtualInputManager")
+            
+            while getgenv().DoubleJumpBoost do
+                -- Press Space twice quickly
+                vim:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                task.wait(0.1)
+                vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                
+                task.wait(0.05)
+                
+                vim:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                task.wait(0.1)
+                vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                
+                -- Wait 4 seconds before next boost
+                task.wait(4)
+            end
+        end)
+    end
+end)
+
 
 -- ==========================================
 -- UTILITY TAB : Combat
@@ -2275,12 +2319,16 @@ Toggles.AutoStartToggle:OnChanged(function()
 					selectedDifficulty = Options.MissionDifficultyDropdown.Value
 					mapName = Options.MissionMapDropdown.Value
 					objective = Options.MissionObjectiveDropdown.Value
-				else
-					selectedDifficulty = Options.RaidDifficultyDropdown.Value
-					mapName = Options.RaidMapDropdown.Value
-					objective = RaidObjectives[mapName] or Options.RaidObjectiveDropdown.Value
-					mapName = RaidMapNames[mapName] or mapName
-				end
+				elseif missionType == "Raids" then
+    selectedDifficulty = Options.RaidDifficultyDropdown.Value
+    mapName = Options.RaidMapDropdown.Value
+    objective = RaidObjectives[mapName] or Options.RaidObjectiveDropdown.Value
+    mapName = RaidMapNames[mapName] or mapName
+elseif missionType == "Waves" then
+    selectedDifficulty = "Easy"  -- Fixed Easy
+    mapName = Options.WavesMapDropdown.Value or "Trost"
+    objective = "Waves"
+end
 
 				local created = false
 
@@ -2380,23 +2428,32 @@ Options.WaitBeforeStartSlider:OnChanged(function()
 end)
 
 AutoStartGroup:AddDropdown("StartTypeDropdown", {
-	Values = {"Missions", "Raids"},
-	Default = DropdownConfig._lastType and table.find({"Missions", "Raids"}, DropdownConfig._lastType) or 1,
+	Values = {"Missions", "Raids", "Waves"},
+	Default = DropdownConfig._lastType and table.find({"Missions", "Raids", "Waves"}, DropdownConfig._lastType) or 1,
 	Multi = false,
 	Text = "Type",
 })
 Options.StartTypeDropdown:OnChanged(function()
-	local Value = Options.StartTypeDropdown.Value
-	if not Value then return end
-	DropdownConfig._lastType = Value
-	SaveConfig(DropdownConfig)
-	local isMission = Value == "Missions"
-	Options.MissionMapDropdown:SetVisible(isMission)
-	Options.MissionObjectiveDropdown:SetVisible(isMission)
-	Options.MissionDifficultyDropdown:SetVisible(isMission)
-	Options.RaidMapDropdown:SetVisible(not isMission)
-	Options.RaidObjectiveDropdown:SetVisible(not isMission)
-	Options.RaidDifficultyDropdown:SetVisible(not isMission)
+    local Value = Options.StartTypeDropdown.Value
+    if not Value then return end
+    DropdownConfig._lastType = Value
+    SaveConfig(DropdownConfig)
+    local isMission = Value == "Missions"
+    local isRaid = Value == "Raids"
+    local isWaves = Value == "Waves"
+    
+    -- Mission settings
+    Options.MissionMapDropdown:SetVisible(isMission)
+    Options.MissionObjectiveDropdown:SetVisible(isMission)
+    Options.MissionDifficultyDropdown:SetVisible(isMission)
+    
+    -- Raid settings
+    Options.RaidMapDropdown:SetVisible(isRaid)
+    Options.RaidObjectiveDropdown:SetVisible(isRaid)
+    Options.RaidDifficultyDropdown:SetVisible(isRaid)
+    
+    -- Waves settings
+    Options.WavesMapDropdown:SetVisible(isWaves)
 end)
 
 AutoStartGroup:AddDropdown("MissionMapDropdown", {
@@ -2500,6 +2557,20 @@ end)
 AutoStartGroup:AddLabel("Trost: Attack Titan\nShiganshina: Armored Titan\nStohess: Female Titan\nColossal: Colossal Titan", true)
 
 AutoStartGroup:AddDivider()
+-- Waves settings (only Easy difficulty)
+
+AutoStartGroup:AddLabel("Waves Mode Settings:", true)
+
+AutoStartGroup:AddDropdown("WavesMapDropdown", {
+    Values = {"Trost"},
+    Default = 1,
+    Multi = false,
+    Text = "Waves Map",
+    Tooltip = "Select map for Waves mode"
+})
+
+-- Waves difficulty always Easy - no dropdown needed
+AutoStartGroup:AddDivider()
 
 AutoStartGroup:AddDropdown("ModifiersDropdown", {
 	Values = {"No Perks","No Skills","No Memories","Nightmare","Oddball","Injury Prone","Chronic Injuries","Fog","Glass Cannon","Time Trial","Boring","Simple"},
@@ -2563,12 +2634,13 @@ Toggles.AFKFarmingBreachToggle:OnChanged(function()
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
         pcall(function() Options.FloatHeightSlider:SetValue(170) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+	    pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
         
         -- Combat
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
         pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
         pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
-        pcall(function() Options.MultiHitCountSlider:SetValue(4) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(3) end)
         
         -- Security
         pcall(function() Options.FarmOptionsDropdown:SetValue({
@@ -2628,6 +2700,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
         pcall(function() Options.FloatHeightSlider:SetValue(170) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+		pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
 
 		-- Extras
 		pcall(function() Toggles.AutoSkipToggle:SetValue(true) end)
@@ -2636,7 +2709,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
         pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
         pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
-        pcall(function() Options.MultiHitCountSlider:SetValue(4) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(2) end)
         
         -- Security
         pcall(function() Options.FarmOptionsDropdown:SetValue({
@@ -2697,6 +2770,7 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
         pcall(function() Options.FloatHeightSlider:SetValue(310) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+		pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
 
 	    -- Extras
 		pcall(function() Toggles.AutoSkipToggle:SetValue(true) end)
@@ -2742,12 +2816,77 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
     end
 end)
 
+-- ==========================================
+-- CONFIG 4: AFK Farming (Waves)
+-- ==========================================
+ConfigsGroup:AddToggle("AFKFarmingWavesToggle", {
+    Text = "AFK Farming (Waves)",
+    Default = false,
+    Tooltip = "Waves Config"
+})
+Toggles.AFKFarmingWavesToggle:OnChanged(function()
+    if Toggles.AFKFarmingWavesToggle.Value then
+        -- Turn OFF other configs
+        pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
+        pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
+        pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+        
+        -- Farm Settings
+        pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
+        pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
+        
+        -- Movement
+        pcall(function() Options.MovementModeDropdown:SetValue("Hover") end)
+        pcall(function() Options.FloatHeightSlider:SetValue(250) end)
+        pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
+        
+        -- Combat
+        pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
+		pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(2) end)
+        
+        -- Security
+        pcall(function() Options.FarmOptionsDropdown:SetValue({
+            ["Auto Execute"] = true, ["Failsafe"] = true
+        }) end)
+        
+        -- Extras
+        pcall(function() Toggles.AutoSkipToggle:SetValue(true) end)
+        pcall(function() Toggles.DeleteMapToggle:SetValue(false) end)
+        
+        -- Waves Settings
+        pcall(function() Toggles.AutoWavesToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoWavesUpgradeToggle:SetValue(true) end)
+        
+        -- Auto Start - Waves
+        pcall(function() Options.StartTypeDropdown:SetValue("Waves") end)
+        pcall(function() Options.WavesMapDropdown:SetValue("Trost") end)
+        pcall(function() Toggles.AutoStartToggle:SetValue(true) end)
+        
+        pcall(function() Toggles.AutoHideToggle:SetValue(true) end)
+        
+        Library:Notify({
+            Title = "Waves Config Applied!",
+            Description = "Waves | Trost | Easy\nAuto Farm + Upgrade",
+            Time = 5
+        })
+        
+        task.delay(3, function()
+            if Library then Library:Toggle(false) end
+        end)
+    end
+end)
+
 -- Configs Info
 ConfigsGroup:AddDivider()
 ConfigsGroup:AddLabel("Configs Summary:")
 ConfigsGroup:AddLabel("• Breach: AFK Farming")
 ConfigsGroup:AddLabel("• Defend: AFK Farming")
 ConfigsGroup:AddLabel("• Stall: AFK Farming")
+ConfigsGroup:AddLabel("• Waves: Auto")
 ConfigsGroup:AddLabel("• All: Hardest + 10 Mods + Solo")
 
 
@@ -3095,6 +3234,107 @@ SkillTreeGroup:AddDropdown("Priority3Dropdown", {
 	Multi = false,
 	Text = "Priority 3",
 })
+
+
+-- ==========================================
+-- WAVES TAB
+-- ==========================================
+
+getgenv().AutoWaves = false
+getgenv().AutoWavesUpgrade = false
+
+WavesFarmGroup:AddToggle("AutoWavesToggle", {
+    Text = "Auto Farm Waves",
+    Default = false,
+    Tooltip = "Auto Waves Farm !"
+})
+Toggles.AutoWavesToggle:OnChanged(function()
+    getgenv().AutoWaves = Toggles.AutoWavesToggle.Value
+    
+    if getgenv().AutoWaves then
+        -- Start farm
+        if not Toggles.AutoKillToggle.Value then
+            Toggles.AutoKillToggle:SetValue(true)
+        elseif not AutoFarm._running then
+            AutoFarm:Start()
+        end
+    else
+        -- ✅ Stop farm when toggle OFF
+        if AutoFarm._running then
+            AutoFarm:Stop()
+        end
+        -- Also turn off main toggle
+        if Toggles.AutoKillToggle.Value then
+            Toggles.AutoKillToggle:SetValue(false)
+        end
+    end
+end)
+
+WavesSettingsGroup:AddToggle("AutoWavesUpgradeToggle", {
+    Text = "Auto Upgrade Gears",
+    Default = false,
+    Tooltip = "Auto upgrade ODM/TS gear using Waves currency"
+})
+Toggles.AutoWavesUpgradeToggle:OnChanged(function()
+    getgenv().AutoWavesUpgrade = Toggles.AutoWavesUpgradeToggle.Value
+    
+    if getgenv().AutoWavesUpgrade then
+        task.spawn(function()
+            local upgrades = {
+                "ODM_Damage", "ODM_Control", "ODM_Gas", "ODM_Speed", 
+                "Blade_Durability", "ODM_Range",
+                "Blast_Radius", "TS_Control", "TS_Range", "TS_Damage", 
+                "TS_Gas", "TS_Speed",
+                "Crit_Damage", "Crit_Chance"
+            }
+            
+            while getgenv().AutoWavesUpgrade do
+                local anyUpgraded = false
+                
+                for _, upg in ipairs(upgrades) do
+                    if not getgenv().AutoWavesUpgrade then break end
+                    
+                    local ok, result = pcall(function()
+                        return getRemote:InvokeServer("Equipment", "Upgrade", {upg})
+                    end)
+                    
+                    if ok and result ~= nil and result ~= false then
+                        anyUpgraded = true
+                        local upgName = string.gsub(upg, "_", " ")
+                        Library:Notify({
+                            Title = "Upgraded!",
+                            Description = upgName .. " upgraded!",
+                            Time = 1.5
+                        })
+                        task.wait(0.3)
+                    elseif ok and result == false then
+                        -- Already maxed, skip
+                        Library:Notify({
+                            Title = "Maxed or not enough coins",
+                            Description = string.gsub(upg, "_", " ") .. " already max!",
+                            Time = 1
+                        })
+                    end
+                end
+                
+                if not anyUpgraded then
+                    Library:Notify({
+                        Title = "All Maxed or not enough coins!",
+                        Description = "All gear fully upgraded! Still checking...",
+                        Time = 3
+                    })
+                end
+                
+                task.wait(5) -- Check every 5 seconds
+            end
+        end)
+    end
+end)
+
+
+WavesFarmGroup:AddLabel("More Features Coming Soon")
+WavesSettingsGroup:AddLabel("More Features Coming Soon")
+
 
 -- ==========================================
 -- GLOBAL TAB : Slots
