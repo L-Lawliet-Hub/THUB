@@ -2634,12 +2634,13 @@ Toggles.AFKFarmingBreachToggle:OnChanged(function()
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
         pcall(function() Options.FloatHeightSlider:SetValue(170) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+	    pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
         
         -- Combat
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
         pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
         pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
-        pcall(function() Options.MultiHitCountSlider:SetValue(4) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(3) end)
         
         -- Security
         pcall(function() Options.FarmOptionsDropdown:SetValue({
@@ -2699,6 +2700,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
         pcall(function() Options.FloatHeightSlider:SetValue(170) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+		pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
 
 		-- Extras
 		pcall(function() Toggles.AutoSkipToggle:SetValue(true) end)
@@ -2707,7 +2709,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
         pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
         pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
-        pcall(function() Options.MultiHitCountSlider:SetValue(4) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(2) end)
         
         -- Security
         pcall(function() Options.FarmOptionsDropdown:SetValue({
@@ -2768,6 +2770,7 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
         pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
         pcall(function() Options.FloatHeightSlider:SetValue(310) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+		pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
 
 	    -- Extras
 		pcall(function() Toggles.AutoSkipToggle:SetValue(true) end)
@@ -2813,11 +2816,13 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
     end
 end)
 
+-- ==========================================
 -- CONFIG 4: AFK Farming (Waves)
+-- ==========================================
 ConfigsGroup:AddToggle("AFKFarmingWavesToggle", {
-    Text = "Waves Config",
+    Text = "AFK Farming (Waves)",
     Default = false,
-    Tooltip = "Waves mode farming"
+    Tooltip = "Waves Config"
 })
 Toggles.AFKFarmingWavesToggle:OnChanged(function()
     if Toggles.AFKFarmingWavesToggle.Value then
@@ -2833,14 +2838,15 @@ Toggles.AFKFarmingWavesToggle:OnChanged(function()
         
         -- Movement
         pcall(function() Options.MovementModeDropdown:SetValue("Hover") end)
-        pcall(function() Options.FloatHeightSlider:SetValue(210) end)
+        pcall(function() Options.FloatHeightSlider:SetValue(250) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
         
         -- Combat
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
         pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
 		pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
-        pcall(function() Options.MultiHitCountSlider:SetValue(3) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(2) end)
         
         -- Security
         pcall(function() Options.FarmOptionsDropdown:SetValue({
@@ -2848,7 +2854,12 @@ Toggles.AFKFarmingWavesToggle:OnChanged(function()
         }) end)
         
         -- Extras
-        pcall(function() Toggles.DeleteMapToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoSkipToggle:SetValue(true) end)
+        pcall(function() Toggles.DeleteMapToggle:SetValue(false) end)
+        
+        -- Waves Settings
+        pcall(function() Toggles.AutoWavesToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoWavesUpgradeToggle:SetValue(true) end)
         
         -- Auto Start - Waves
         pcall(function() Options.StartTypeDropdown:SetValue("Waves") end)
@@ -2858,8 +2869,8 @@ Toggles.AFKFarmingWavesToggle:OnChanged(function()
         pcall(function() Toggles.AutoHideToggle:SetValue(true) end)
         
         Library:Notify({
-            Title = "⚙️ Waves Config Applied!",
-            Description = "Waves Mode | Easy | Trost",
+            Title = "Waves Config Applied!",
+            Description = "Waves | Trost | Easy\nAuto Farm + Upgrade",
             Time = 5
         })
         
