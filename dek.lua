@@ -1664,6 +1664,7 @@ local Tabs = {
 	Utility  = Window:AddTab("Utils",  "zap"),
 	Configs  = Window:AddTab("Configs", "settings-2"),
 	Upgrades = Window:AddTab("Upgrades", "trending-up"),
+	Waves    = Window:AddTab("Waves", "waves"),
 	Global   = Window:AddTab("Central",   "globe"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
