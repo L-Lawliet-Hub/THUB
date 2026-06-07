@@ -1912,19 +1912,6 @@ Toggles.AutoEscapeToggle:OnChanged(function()
 	getgenv().AutoEscape = Toggles.AutoEscapeToggle.Value
 end)
 
-CombatGroup:AddDivider()
-CombatGroup:AddSlider("AttackRangeSlider", {
-    Text = "Attack Range",
-    Default = 150,
-    Min = 50,
-    Max = 500,
-    Rounding = 0,
-    Tooltip = "Maximum distance to attack titans from"
-})
-Options.AttackRangeSlider:OnChanged(function()
-    getgenv().AutoFarmConfig.AttackRange = Options.AttackRangeSlider.Value
-end)
-
 CombatGroup:AddToggle("MultiHitToggle", {
 	Text = "Multi Hit",
 	Default = false,
