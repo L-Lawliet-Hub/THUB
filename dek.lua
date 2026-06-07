@@ -1690,6 +1690,10 @@ local ConfigsGroup = Tabs.Configs:AddLeftGroupbox("Quick Configs", "zap")
 local UpgradesGroup  = Tabs.Upgrades:AddLeftGroupbox("Upgrades", "trending-up")
 local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch")
 
+-- Waves tab
+local WavesFarmGroup = Tabs.Waves:AddLeftGroupbox("Waves Farm", "flame")
+local WavesSettingsGroup = Tabs.Waves:AddRightGroupbox("Features", "menu")
+
 -- Global tab
 local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll", "shuffle")
 local SettingsGroup   = Tabs.Global:AddLeftGroupbox("Settings", "settings")
@@ -3181,6 +3185,22 @@ SkillTreeGroup:AddDropdown("Priority3Dropdown", {
 	Multi = false,
 	Text = "Priority 3",
 })
+
+
+-- ==========================================
+-- WAVES TAB
+-- ==========================================
+
+WavesFarmGroup:AddLabel("Waves Mode Farming")
+WavesFarmGroup:AddLabel("Coming Soon")
+
+
+WavesSettingsGroup:AddLabel("🔧 Features")
+WavesSettingsGroup:AddLabel("Coming soon...")
+WavesSettingsGroup:AddLabel("• Auto start waves")
+WavesSettingsGroup:AddLabel("• Auto start/skip waves")
+WavesSettingsGroup:AddLabel("• Auto Upgrade")
+WavesSettingsGroup:AddLabel("• Wave-specific settings")
 
 -- ==========================================
 -- GLOBAL TAB : Slots
