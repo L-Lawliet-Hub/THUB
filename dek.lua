@@ -3202,8 +3202,22 @@ WavesFarmGroup:AddToggle("AutoWavesToggle", {
 Toggles.AutoWavesToggle:OnChanged(function()
     getgenv().AutoWaves = Toggles.AutoWavesToggle.Value
     
-   if getgenv().AutoWaves then
-        AutoFarm:Start()  -- ✅ Bas itna hi
+    if getgenv().AutoWaves then
+        -- Start farm
+        if not Toggles.AutoKillToggle.Value then
+            Toggles.AutoKillToggle:SetValue(true)
+        elseif not AutoFarm._running then
+            AutoFarm:Start()
+        end
+    else
+        -- ✅ Stop farm when toggle OFF
+        if AutoFarm._running then
+            AutoFarm:Stop()
+        end
+        -- Also turn off main toggle
+        if Toggles.AutoKillToggle.Value then
+            Toggles.AutoKillToggle:SetValue(false)
+        end
     end
 end)
 
@@ -3237,17 +3251,32 @@ Toggles.AutoWavesUpgradeToggle:OnChanged(function()
                     
                     if ok and result ~= nil and result ~= false then
                         anyUpgraded = true
-                        task.wait(0.5)
+                        local upgName = string.gsub(upg, "_", " ")
+                        Library:Notify({
+                            Title = "Upgraded!",
+                            Description = upgName .. " upgraded!",
+                            Time = 1.5
+                        })
+                        task.wait(0.3)
+                    elseif ok and result == false then
+                        -- Already maxed, skip
+                        Library:Notify({
+                            Title = "Maxed or not enough coins",
+                            Description = string.gsub(upg, "_", " ") .. " already max!",
+                            Time = 1
+                        })
                     end
                 end
                 
                 if not anyUpgraded then
-                    -- All maxed, stop
-                    getgenv().AutoWavesUpgrade = false
-                    Toggles.AutoWavesUpgradeToggle:SetValue(false)
+                    Library:Notify({
+                        Title = "All Maxed!",
+                        Description = "All gear fully upgraded! Still checking...",
+                        Time = 3
+                    })
                 end
                 
-                task.wait(2)
+                task.wait(5) -- Check every 5 seconds
             end
         end)
     end
