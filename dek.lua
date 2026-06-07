@@ -1913,31 +1913,6 @@ Toggles.DoubleJumpToggle:OnChanged(function()
     end
 end)
 
--- ==========================================
--- AUTO BOOST (All Modes)
--- ==========================================
-
-getgenv().AutoBoost = false
-
-MovementGroup:AddToggle("AutoBoostToggle", {
-    Text = "Auto Boost",
-    Default = false,
-    Tooltip = "Auto send boost every 4 seconds"
-})
-Toggles.AutoBoostToggle:OnChanged(function()
-    getgenv().AutoBoost = Toggles.AutoBoostToggle.Value
-    
-    if getgenv().AutoBoost then
-        task.spawn(function()
-            while getgenv().AutoBoost do
-                pcall(function()
-                    postRemote:FireServer("S_Objectives", "Boost")
-                end)
-                task.wait(4) -- Every 4 seconds
-            end
-        end)
-    end
-end)
 
 -- ==========================================
 -- UTILITY TAB : Combat
