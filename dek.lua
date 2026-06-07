@@ -212,7 +212,7 @@ end)
 getgenv().AutoFarmConfig = {
 	AttackCooldown = 1,
 	ReloadCooldown = 1,
-	AttackRange = 5000,
+	AttackRange = 150,
 	MoveSpeed = 400,
 	HeightOffset = 250,
 	MovementMode = "Hover",
@@ -1061,24 +1061,6 @@ if rewards then
 		local hasSpecial = data.Special and next(data.Special) ~= nil
 
 		if webhook and webhook ~= "" then
-			-- Fresh ban check: attribute can be bool true, string "true", or number 1
-			local function isFlagged(attr)
-				local v = lp:GetAttribute(attr)
-				return v == true or v == "true" or v == 1
-			end
-			local isBlacklisted = isFlagged("Blacklisted")
-			local isExploiter   = isFlagged("Exploiter")
-			-- Fallback via server data if both still false
-			if not isBlacklisted and not isExploiter then
-				pcall(function()
-					local pd = GetPlayerData()
-					if pd then
-						isBlacklisted = pd.Blacklisted == true or pd.Blacklisted == "true" or pd.Banned == true
-						isExploiter   = pd.Exploiter  == true or pd.Exploiter  == "true"
-					end
-				end)
-			end
-
 			local payload = {
 				content = hasSpecial and "MYTHICAL DROP! @everyone" or nil,
 				embeds = {{
@@ -1091,8 +1073,6 @@ if rewards then
 								"User: " .. lp.Name .. "\n" ..
 								"Games Played: " .. tostring(gamesPlayed) .. "\n" ..
 								"Executor: " .. executor .. "\n" ..
-								"Blacklisted: " .. (isBlacklisted and "YES ❌" or "No ✅") .. "\n" ..
-								"Exploiter: "   .. (isExploiter   and "YES ❌" or "No ✅") .. "\n" ..
 								"\n```",
 							inline = true
 						},
@@ -1257,7 +1237,8 @@ local Missions = {
 	["Docks"] = { "Skirmish", "Stall", "Random" },
 	["Stohess"] = { "Skirmish", "Random" },
 	["Chapel"] = {"Skirmish", "Random"},
-	["Colossal"] = { "Random" }
+	["Colossal"] = { "Random" },
+	["Waves"] = { "Waves" }
 }
 
 local RaidObjectives = {
@@ -1341,12 +1322,13 @@ local function setupAutoExecute()
 end
 
 local function ExecuteImmediateAutomation()
-	-- Auto Skip Cutscenes (BUTTON ONLY)
+	
+-- Auto Skip Cutscenes + Always TP to Refill
 if getgenv().AutoSkip then
     local skip = INTERFACE:FindFirstChild("Skip")
     
     if skip and skip.Visible then
-        -- Try button multiple times for reliability
+        -- Click skip multiple times
         for i = 1, 5 do
             local interact = skip:FindFirstChild("Interact")
             if interact then
@@ -1356,8 +1338,19 @@ if getgenv().AutoSkip then
             if not skip.Visible then break end
         end
     end
+    
+    -- ✅ ALWAYS TP to refill (chahe skip tha ya nahi)
+    task.wait(0.5)
+    pcall(function()
+        local refillPart = getCachedRefillPart()
+        if refillPart and refillPart.Parent then
+            local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                root.CFrame = refillPart.CFrame * CFrame.new(0, 5, 10)
+            end
+        end
+    end)
 end
-
 	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
 	-- Auto Open Chests (ULTRA FIX - forces both chests to open)
 if getgenv().AutoChest then
@@ -1920,8 +1913,6 @@ Toggles.AutoEscapeToggle:OnChanged(function()
 	getgenv().AutoEscape = Toggles.AutoEscapeToggle.Value
 end)
 
-CombatGroup:AddDivider()
-
 CombatGroup:AddToggle("MultiHitToggle", {
 	Text = "Multi Hit",
 	Default = false,
@@ -2285,12 +2276,16 @@ Toggles.AutoStartToggle:OnChanged(function()
 					selectedDifficulty = Options.MissionDifficultyDropdown.Value
 					mapName = Options.MissionMapDropdown.Value
 					objective = Options.MissionObjectiveDropdown.Value
-				else
-					selectedDifficulty = Options.RaidDifficultyDropdown.Value
-					mapName = Options.RaidMapDropdown.Value
-					objective = RaidObjectives[mapName] or Options.RaidObjectiveDropdown.Value
-					mapName = RaidMapNames[mapName] or mapName
-				end
+				elseif missionType == "Raids" then
+    selectedDifficulty = Options.RaidDifficultyDropdown.Value
+    mapName = Options.RaidMapDropdown.Value
+    objective = RaidObjectives[mapName] or Options.RaidObjectiveDropdown.Value
+    mapName = RaidMapNames[mapName] or mapName
+elseif missionType == "Waves" then
+    selectedDifficulty = "Easy"  -- Fixed Easy
+    mapName = Options.WavesMapDropdown.Value or "Trost"
+    objective = "Waves"
+end
 
 				local created = false
 
@@ -2390,23 +2385,32 @@ Options.WaitBeforeStartSlider:OnChanged(function()
 end)
 
 AutoStartGroup:AddDropdown("StartTypeDropdown", {
-	Values = {"Missions", "Raids"},
-	Default = DropdownConfig._lastType and table.find({"Missions", "Raids"}, DropdownConfig._lastType) or 1,
+	Values = {"Missions", "Raids", "Waves"},
+	Default = DropdownConfig._lastType and table.find({"Missions", "Raids", "Waves"}, DropdownConfig._lastType) or 1,
 	Multi = false,
 	Text = "Type",
 })
 Options.StartTypeDropdown:OnChanged(function()
-	local Value = Options.StartTypeDropdown.Value
-	if not Value then return end
-	DropdownConfig._lastType = Value
-	SaveConfig(DropdownConfig)
-	local isMission = Value == "Missions"
-	Options.MissionMapDropdown:SetVisible(isMission)
-	Options.MissionObjectiveDropdown:SetVisible(isMission)
-	Options.MissionDifficultyDropdown:SetVisible(isMission)
-	Options.RaidMapDropdown:SetVisible(not isMission)
-	Options.RaidObjectiveDropdown:SetVisible(not isMission)
-	Options.RaidDifficultyDropdown:SetVisible(not isMission)
+    local Value = Options.StartTypeDropdown.Value
+    if not Value then return end
+    DropdownConfig._lastType = Value
+    SaveConfig(DropdownConfig)
+    local isMission = Value == "Missions"
+    local isRaid = Value == "Raids"
+    local isWaves = Value == "Waves"
+    
+    -- Mission settings
+    Options.MissionMapDropdown:SetVisible(isMission)
+    Options.MissionObjectiveDropdown:SetVisible(isMission)
+    Options.MissionDifficultyDropdown:SetVisible(isMission)
+    
+    -- Raid settings
+    Options.RaidMapDropdown:SetVisible(isRaid)
+    Options.RaidObjectiveDropdown:SetVisible(isRaid)
+    Options.RaidDifficultyDropdown:SetVisible(isRaid)
+    
+    -- Waves settings
+    Options.WavesMapDropdown:SetVisible(isWaves)
 end)
 
 AutoStartGroup:AddDropdown("MissionMapDropdown", {
@@ -2509,6 +2513,20 @@ end)
 
 AutoStartGroup:AddLabel("Trost: Attack Titan\nShiganshina: Armored Titan\nStohess: Female Titan\nColossal: Colossal Titan", true)
 
+AutoStartGroup:AddDivider()
+-- Waves settings (only Easy difficulty)
+
+AutoStartGroup:AddLabel("Waves Mode Settings:", true)
+
+AutoStartGroup:AddDropdown("WavesMapDropdown", {
+    Values = {"Trost"},
+    Default = 1,
+    Multi = false,
+    Text = "Waves Map",
+    Tooltip = "Select map for Waves mode"
+})
+
+-- Waves difficulty always Easy - no dropdown needed
 AutoStartGroup:AddDivider()
 
 AutoStartGroup:AddDropdown("ModifiersDropdown", {
