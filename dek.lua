@@ -3192,12 +3192,11 @@ SkillTreeGroup:AddDropdown("Priority3Dropdown", {
 -- ==========================================
 
 WavesFarmGroup:AddLabel("Waves Mode Farming")
-WavesFarmGroup:AddLabel("Coming Soon")
+WavesFarmGroup:AddLabel("Coming Soon...")
 
 
 WavesSettingsGroup:AddLabel("🔧 Features")
 WavesSettingsGroup:AddLabel("Coming soon...")
-WavesSettingsGroup:AddLabel("• Auto start waves")
 WavesSettingsGroup:AddLabel("• Auto start/skip waves")
 WavesSettingsGroup:AddLabel("• Auto Upgrade")
 WavesSettingsGroup:AddLabel("• Wave-specific settings")
