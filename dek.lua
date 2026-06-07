@@ -3192,6 +3192,24 @@ SkillTreeGroup:AddDropdown("Priority3Dropdown", {
 -- ==========================================
 
 WavesFarmGroup:AddLabel("Waves Mode Farming")
+getgenv().AutoWaves = false
+
+WavesFarmGroup:AddToggle("AutoWavesToggle", {
+    Text = "Auto Farm Waves",
+    Default = false,
+    Tooltip = "Auto Waves Farm"
+})
+Toggles.AutoWavesToggle:OnChanged(function()
+    getgenv().AutoWaves = Toggles.AutoWavesToggle.Value
+    
+    if getgenv().AutoWaves then
+        -- Auto enable main farm if not already on
+        if not Toggles.AutoKillToggle.Value then
+            Toggles.AutoKillToggle:SetValue(true)
+        end
+
+
+
 WavesFarmGroup:AddLabel("Coming Soon...")
 
 
