@@ -3270,7 +3270,7 @@ Toggles.AutoWavesUpgradeToggle:OnChanged(function()
                 
                 if not anyUpgraded then
                     Library:Notify({
-                        Title = "All Maxed!",
+                        Title = "All Maxed or not enough coins!",
                         Description = "All gear fully upgraded! Still checking...",
                         Time = 3
                     })
@@ -3282,6 +3282,9 @@ Toggles.AutoWavesUpgradeToggle:OnChanged(function()
     end
 end)
 
+
+WavesFarmGroup:AddLabel("More Features Coming Soon")
+WavesSettingsGroup:AddLabel("More Features Coming Soon")
 
 
 -- ==========================================
