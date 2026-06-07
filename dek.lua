@@ -3202,15 +3202,8 @@ WavesFarmGroup:AddToggle("AutoWavesToggle", {
 Toggles.AutoWavesToggle:OnChanged(function()
     getgenv().AutoWaves = Toggles.AutoWavesToggle.Value
     
-    if getgenv().AutoWaves then
-        -- Only start auto farm, nothing else
-        if not Toggles.AutoKillToggle.Value then
-            Toggles.AutoKillToggle:SetValue(true)
-        elseif not AutoFarm._running then
-            AutoFarm:Start()
-        end
-        
-       
+   if getgenv().AutoWaves then
+        AutoFarm:Start()  -- ✅ Bas itna hi
     end
 end)
 
