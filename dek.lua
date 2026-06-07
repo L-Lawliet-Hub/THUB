@@ -3192,6 +3192,7 @@ SkillTreeGroup:AddDropdown("Priority3Dropdown", {
 -- ==========================================
 
 getgenv().AutoWaves = false
+getgenv().AutoWavesUpgrade = false
 
 WavesFarmGroup:AddToggle("AutoWavesToggle", {
     Text = "Auto Farm Waves",
@@ -3213,12 +3214,53 @@ Toggles.AutoWavesToggle:OnChanged(function()
     end
 end)
 
+WavesSettingsGroup:AddToggle("AutoWavesUpgradeToggle", {
+    Text = "Auto Upgrade Gears",
+    Default = false,
+    Tooltip = "Auto upgrade ODM/TS gear using Waves currency"
+})
+Toggles.AutoWavesUpgradeToggle:OnChanged(function()
+    getgenv().AutoWavesUpgrade = Toggles.AutoWavesUpgradeToggle.Value
+    
+    if getgenv().AutoWavesUpgrade then
+        task.spawn(function()
+            local upgrades = {
+                "ODM_Damage", "ODM_Control", "ODM_Gas", "ODM_Speed", 
+                "Blade_Durability", "ODM_Range",
+                "Blast_Radius", "TS_Control", "TS_Range", "TS_Damage", 
+                "TS_Gas", "TS_Speed",
+                "Crit_Damage", "Crit_Chance"
+            }
+            
+            while getgenv().AutoWavesUpgrade do
+                local anyUpgraded = false
+                
+                for _, upg in ipairs(upgrades) do
+                    if not getgenv().AutoWavesUpgrade then break end
+                    
+                    local ok, result = pcall(function()
+                        return getRemote:InvokeServer("Equipment", "Upgrade", {upg})
+                    end)
+                    
+                    if ok and result ~= nil and result ~= false then
+                        anyUpgraded = true
+                        task.wait(0.5)
+                    end
+                end
+                
+                if not anyUpgraded then
+                    -- All maxed, stop
+                    getgenv().AutoWavesUpgrade = false
+                    Toggles.AutoWavesUpgradeToggle:SetValue(false)
+                end
+                
+                task.wait(2)
+            end
+        end)
+    end
+end)
 
-WavesSettingsGroup:AddLabel("🔧 Features")
-WavesSettingsGroup:AddLabel("Coming soon...")
-WavesSettingsGroup:AddLabel("• Auto start/skip waves")
-WavesSettingsGroup:AddLabel("• Auto Upgrade")
-WavesSettingsGroup:AddLabel("• Wave-specific settings")
+
 
 -- ==========================================
 -- GLOBAL TAB : Slots
