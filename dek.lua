@@ -2770,12 +2770,69 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
     end
 end)
 
+-- CONFIG 4: AFK Farming (Waves)
+ConfigsGroup:AddToggle("AFKFarmingWavesToggle", {
+    Text = "Waves Config",
+    Default = false,
+    Tooltip = "Waves mode farming"
+})
+Toggles.AFKFarmingWavesToggle:OnChanged(function()
+    if Toggles.AFKFarmingWavesToggle.Value then
+        -- Turn OFF other configs
+        pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
+        pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
+        pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+        
+        -- Farm Settings
+        pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoRetryToggle:SetValue(true) end)
+        pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
+        
+        -- Movement
+        pcall(function() Options.MovementModeDropdown:SetValue("Hover") end)
+        pcall(function() Options.FloatHeightSlider:SetValue(210) end)
+        pcall(function() Toggles.NoclipToggle:SetValue(true) end)
+        
+        -- Combat
+        pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
+        pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
+		pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(3) end)
+        
+        -- Security
+        pcall(function() Options.FarmOptionsDropdown:SetValue({
+            ["Auto Execute"] = true, ["Failsafe"] = true
+        }) end)
+        
+        -- Extras
+        pcall(function() Toggles.DeleteMapToggle:SetValue(true) end)
+        
+        -- Auto Start - Waves
+        pcall(function() Options.StartTypeDropdown:SetValue("Waves") end)
+        pcall(function() Options.WavesMapDropdown:SetValue("Trost") end)
+        pcall(function() Toggles.AutoStartToggle:SetValue(true) end)
+        
+        pcall(function() Toggles.AutoHideToggle:SetValue(true) end)
+        
+        Library:Notify({
+            Title = "⚙️ Waves Config Applied!",
+            Description = "Waves Mode | Easy | Trost",
+            Time = 5
+        })
+        
+        task.delay(3, function()
+            if Library then Library:Toggle(false) end
+        end)
+    end
+end)
+
 -- Configs Info
 ConfigsGroup:AddDivider()
 ConfigsGroup:AddLabel("Configs Summary:")
 ConfigsGroup:AddLabel("• Breach: AFK Farming")
 ConfigsGroup:AddLabel("• Defend: AFK Farming")
 ConfigsGroup:AddLabel("• Stall: AFK Farming")
+ConfigsGroup:AddLabel("• Waves: Auto")
 ConfigsGroup:AddLabel("• All: Hardest + 10 Mods + Solo")
 
 
