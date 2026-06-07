@@ -1877,6 +1877,43 @@ Toggles.NoclipToggle:OnChanged(function()
 end)
 
 -- ==========================================
+-- AUTO DOUBLE JUMP BOOST (Auto Space Press)
+-- ==========================================
+
+getgenv().DoubleJumpBoost = false
+
+MovementGroup:AddToggle("DoubleJumpToggle", {
+    Text = "Auto Jump Boost",
+    Default = false,
+    Tooltip = "Auto press space twice every 4s for speed boost"
+})
+Toggles.DoubleJumpToggle:OnChanged(function()
+    getgenv().DoubleJumpBoost = Toggles.DoubleJumpToggle.Value
+    
+    if getgenv().DoubleJumpBoost then
+        task.spawn(function()
+            local vim = game:GetService("VirtualInputManager")
+            
+            while getgenv().DoubleJumpBoost do
+                -- Press Space twice quickly
+                vim:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                task.wait(0.1)
+                vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                
+                task.wait(0.05)
+                
+                vim:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                task.wait(0.1)
+                vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                
+                -- Wait 4 seconds before next boost
+                task.wait(4)
+            end
+        end)
+    end
+end)
+
+-- ==========================================
 -- UTILITY TAB : Combat
 -- ==========================================
 
