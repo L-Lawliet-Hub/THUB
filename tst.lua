@@ -170,7 +170,6 @@ end
 
 sessionStats = LoadSessionStats()
 
-
 local function getSessionTime()
 	local elapsed = os.time() - sessionStats.startTime
 	local hours = math.floor(elapsed / 3600)
@@ -1008,11 +1007,35 @@ if rewards then
 				if v:IsA("Frame") and v:FindFirstChild("Main") then
 					local inner = v.Main:FindFirstChild("Inner")
 					if inner then
-						-- Use frame Name (e.g. "Family_Crystal") as key — formatItems converts _ to spaces
-						-- Fixes "numbers instead of names" bug in webhook Special field
 						if inner:FindFirstChild("Rarity") and inner.Rarity.BackgroundColor3 == Color3.fromRGB(255, 0, 0) then
-							local qty = inner:FindFirstChild("Quantity")
-							data.Special[v.Name] = qty and qty.Text or "1"
+							local itemName = nil
+							local titleLabel = inner:FindFirstChild("Title")
+							if titleLabel and titleLabel:IsA("TextLabel") and titleLabel.Text ~= "" and not tonumber(titleLabel.Text) then
+								itemName = titleLabel.Text
+							end
+							if not itemName then
+								for _, child in ipairs(inner:GetDescendants()) do
+									if child:IsA("TextLabel") and child.Text ~= "" then
+										local text = child.Text
+										if not tonumber(text) and #text > 2 and text ~= "Quantity" then
+											itemName = text
+											break
+										end
+									end
+								end
+							end
+							if not itemName then
+								local rarityFrame = inner:FindFirstChild("Rarity")
+								if rarityFrame then
+									for _, child in ipairs(rarityFrame:GetDescendants()) do
+										if child:IsA("TextLabel") and child.Text ~= "" and not tonumber(child.Text) then
+											itemName = child.Text
+											break
+										end
+									end
+								end
+							end
+							data.Special[itemName] = inner.Quantity.Text
 						end
 					end
 				end
@@ -1099,7 +1122,38 @@ if rewards then
 	end)
 end
 
+-- Separate chest handler
+local chestsGui = INTERFACE:FindFirstChild("Chests")
+if chestsGui then
+	chestsGui:GetPropertyChangedSignal("Visible"):Connect(function()
+		if not chestsGui.Visible then return end
+		if not getgenv().AutoChest then return end
+		
+		task.wait(0.3)
+		
+		local free = chestsGui:FindFirstChild("Free")
+		local premium = chestsGui:FindFirstChild("Premium")
+		local finish = chestsGui:FindFirstChild("Finish")
 
+		if free and free.Visible then
+			UseButton(free)
+			task.wait(1)
+		end
+
+		if getgenv().OpenSecondChest and premium and premium.Visible then
+			local title = premium:FindFirstChild("Title")
+			if title and not string.find(title.Text, "(0)") then
+				UseButton(premium)
+				task.wait(1)
+			end
+		end
+
+		finish = chestsGui:FindFirstChild("Finish")
+		if finish and finish.Visible then
+			UseButton(finish)
+		end
+	end)
+end
 
 -- ==========================================
 -- PERKS & TALENTS DATA
@@ -1302,39 +1356,15 @@ local function setupAutoExecute()
 end
 
 local function ExecuteImmediateAutomation()
-	-- Auto Skip Cutscenes
 	if getgenv().AutoSkip then
 		local skip = INTERFACE:FindFirstChild("Skip")
 		if skip and skip.Visible then task.wait(1) end
 		if skip and skip.Visible then
+			task.wait(1)
 			UseButton(skip:FindFirstChild("Interact"))
 		end
 	end
 
-	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
-	if getgenv().AutoChest then
-		local chests = INTERFACE:FindFirstChild("Chests")
-		if chests and chests.Visible then
-			local free    = chests:FindFirstChild("Free")
-			local premium = chests:FindFirstChild("Premium")
-			local finish  = chests:FindFirstChild("Finish")
-
-			if free and free.Visible then
-				UseButton(free)
-				task.wait(0.5)
-			elseif premium and premium.Visible
-				and premium:FindFirstChild("Title")
-				and not string.find(premium.Title.Text, "(0)")
-				and getgenv().OpenSecondChest then
-				UseButton(premium)
-				task.wait(0.5)
-			elseif finish and finish.Visible then
-				UseButton(finish)
-			end
-		end
-	end
-
-	-- Auto Retry (US Suite logic)
 	if getgenv().AutoRetry then
 		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
 		if rewardsGui and rewardsGui.Visible then
@@ -1343,9 +1373,28 @@ local function ExecuteImmediateAutomation()
 				and rewardsGui.Main.Info:FindFirstChild("Main")
 				and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
 				and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
-			if retryBtn then 
-        task.wait(1)
-        UseButton(retryBtn) end
+			
+			if not retryBtn or not retryBtn.Visible then
+				for _, btn in ipairs(rewardsGui:GetDescendants()) do
+					if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and btn.Active then
+						if btn.Name == "Retry" or (btn:IsA("TextButton") and btn.Text:find("Retry")) then
+							retryBtn = btn
+							break
+						end
+					end
+				end
+			end
+			
+			if retryBtn and retryBtn.Visible and retryBtn.Active then
+				task.wait(1)
+				local clicked = UseButton(retryBtn)
+				if not clicked then
+					GuiService.SelectedObject = retryBtn
+					task.wait(0.1)
+					vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+					vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+				end
+			end
 		end
 	end
 end
@@ -1616,39 +1665,38 @@ local Tabs = {
 	Farm     = Window:AddTab("Main",     "house"),
 	Utility  = Window:AddTab("Utils",  "zap"),
 	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
-	Global   = Window:AddTab("Central",   "globe"),
+	Global   = Window:AddTab("Central",   "compass"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
 }
 
 -- Farm tab
-local MiscGroup      = Tabs.Farm:AddLeftGroupbox("Misc", "compass")
-local MainGroup      = Tabs.Farm:AddLeftGroupbox("Farm", "tractor")
-local MovementGroup  = Tabs.Farm:AddRightGroupbox("Movement", "move")
-local AutoStartGroup = Tabs.Farm:AddRightGroupbox("Auto Start", "power")
+local MiscGroup      = Tabs.Farm:AddLeftGroupbox("Misc")
+local MainGroup      = Tabs.Farm:AddLeftGroupbox("Farm")
+local MovementGroup  = Tabs.Farm:AddRightGroupbox("Movement")
+local AutoStartGroup = Tabs.Farm:AddRightGroupbox("Auto Start")
 
 -- Utility tab
-local CombatGroup   = Tabs.Utility:AddLeftGroupbox("Combat Settings", "shield")
-local SecurityGroup = Tabs.Utility:AddLeftGroupbox("Security", "shield-check")
-local BoostGroup    = Tabs.Utility:AddLeftGroupbox("Boosted Maps", "flame")
-local MasteryGroup  = Tabs.Utility:AddRightGroupbox("Mastery Farm", "award")
-local FeaturesGroup = Tabs.Utility:AddRightGroupbox("Extras", "menu")
+local CombatGroup   = Tabs.Utility:AddLeftGroupbox("Combat Settings")
+local SecurityGroup = Tabs.Utility:AddLeftGroupbox("Security")
+local BoostGroup    = Tabs.Utility:AddLeftGroupbox("Boosted Maps")
+local MasteryGroup  = Tabs.Utility:AddRightGroupbox("Mastery Farm")
+local FeaturesGroup = Tabs.Utility:AddRightGroupbox("Extras")
 
 -- Upgrades tab
-local UpgradesGroup  = Tabs.Upgrades:AddLeftGroupbox("Upgrades", "trending-up")
-local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch")
+local UpgradesGroup  = Tabs.Upgrades:AddLeftGroupbox("Upgrades")
+local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree")
 
 -- Global tab
-local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll", "shuffle")
-local SettingsGroup   = Tabs.Global:AddLeftGroupbox("Settings", "settings")
-local SlotGroup       = Tabs.Global:AddRightGroupbox("Slots", "list")
-local WebhookGroup    = Tabs.Global:AddRightGroupbox("Webhook", "link")
+local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll")
+local SettingsGroup   = Tabs.Global:AddLeftGroupbox("Settings")
+local SlotGroup       = Tabs.Global:AddRightGroupbox("Slots")
+local WebhookGroup    = Tabs.Global:AddRightGroupbox("Webhook")
 
 -- Stats tab
-local SessionGroup = Tabs.Stats:AddLeftGroupbox("Session Stats", "clock")
-local RatesGroup   = Tabs.Stats:AddRightGroupbox("Rates", "gauge")
-local CrashGroup   = Tabs.Stats:AddRightGroupbox("Auto Rejoin", "log-in")
-
+local SessionGroup = Tabs.Stats:AddLeftGroupbox("Session Stats")
+local RatesGroup   = Tabs.Stats:AddRightGroupbox("Rates")
+local CrashGroup   = Tabs.Stats:AddRightGroupbox("Auto Rejoin")
 
 -- ==========================================
 -- FARM TAB : Misc
