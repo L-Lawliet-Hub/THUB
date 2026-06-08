@@ -122,7 +122,6 @@ getgenv().LastTitanWait = false
 getgenv().LastTitanWaitSecs = 60
 getgenv().OpenSecondChest = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
-getgenv().HideDamageText = false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
 getgenv().CurrentStatusLabel = nil
@@ -900,12 +899,8 @@ local webhook
 
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
-		if not rewards.Visible then 
-			
-			return 
-		end
-		
-		
+		if not rewards.Visible then return end
+					
 
 		-- Reset mission start timer
 		getgenv()._missionStartTime = nil
