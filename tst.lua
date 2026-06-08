@@ -1378,30 +1378,16 @@ if getgenv().AutoChest then
     end
 end
 
-	-- ==========================================
--- AUTO RETRY (Button + Remote)
--- ==========================================
-
-if getgenv().AutoRetry then
-    local rewardsGui = INTERFACE:FindFirstChild("Rewards")
-    if rewardsGui and rewardsGui.Visible then
-        -- Step 1: Try UI button first
-        local retryBtn = rewardsGui:FindFirstChild("Main")
-            and rewardsGui.Main:FindFirstChild("Info")
-            and rewardsGui.Main.Info:FindFirstChild("Main")
-            and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
-            and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
-        
-        if retryBtn then
-            UseButton(retryBtn)
-        end
-        
-        -- Step 2: Wait 1s then remote
-        task.wait(1)
-        pcall(function()
-            getRemote:InvokeServer("Functions", "Retry", "Add")
-        end)
-    end
+-- Auto Retry (PURE REMOTE - No Button)
+	if getgenv().AutoRetry then
+		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
+		if rewardsGui and rewardsGui.Visible then
+			task.wait(1)
+			pcall(function()
+				getRemote:InvokeServer("Functions", "Retry", "Add")
+			end)
+		end
+	end
 end
 
 local function roll(targets, rarities)
