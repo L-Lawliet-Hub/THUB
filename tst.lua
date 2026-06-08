@@ -1417,6 +1417,7 @@ if getgenv().AutoRetry then
     end
 end
 
+
 local function roll(targets, rarities)
 	if not PlayerGui.Interface.Customisation.Visible then return end
 
