@@ -2177,9 +2177,9 @@ Toggles.AutoBoostToggle:OnChanged(function()
 	if not getgenv().AutoBoost then return end
 	task.spawn(function()
 		local boostItems = {
-			Gold = {"2x Gold Boost [30m]", "2x Gold Boost [15m]"},
-			Luck = {"2x Luck Boost [30m]", "2x Luck Boost [15m]"},
-			XP   = {"2x XP Boost [30m]",  "2x XP Boost [15m]"},
+			Gold = {"2x Gold Boost [2h]", "2x Gold Boost [1h]", "2x Gold Boost [30m]", "2x Gold Boost [15m]"},
+			Luck = {"2x Luck Boost [2h]", "2x Luck Boost [1h]", "2x Luck Boost [30m]", "2x Luck Boost [15m]"},
+			XP   = {"2x XP Boost [2h]",  "2x XP Boost [1h]", "2x XP Boost [30m]", "2x XP Boost [15m]"},
 		}
 		local function useBoost(boostType)
 			for _, itemName in ipairs(boostItems[boostType]) do
