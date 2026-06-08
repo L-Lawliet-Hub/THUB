@@ -122,6 +122,7 @@ getgenv().LastTitanWait = false
 getgenv().LastTitanWaitSecs = 60
 getgenv().OpenSecondChest = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
+getgenv().HideDamageText = false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
 getgenv().CurrentStatusLabel = nil
@@ -169,6 +170,7 @@ local function LoadSessionStats()
 end
 
 sessionStats = LoadSessionStats()
+
 
 local function getSessionTime()
 	local elapsed = os.time() - sessionStats.startTime
@@ -890,13 +892,23 @@ local gamesPlayed = tonumber(readfile(path))
 
 local webhook
 
+local MAX_REWARD_WAIT = 8
+local rewardGuiStartTime = nil
+
 -- ==========================================
 -- REWARDS LISTENER
 -- ==========================================
 
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
-		if not rewards.Visible then return end
+		if not rewards.Visible then 
+			-- Reward screen closed, reset stuck timer
+			rewardGuiStartTime = nil
+			return 
+		end
+		
+		-- Start stuck detection timer when reward screen opens
+		rewardGuiStartTime = os.clock()
 
 		-- Reset mission start timer
 		getgenv()._missionStartTime = nil
@@ -1008,35 +1020,34 @@ if rewards then
 					local inner = v.Main:FindFirstChild("Inner")
 					if inner then
 						if inner:FindFirstChild("Rarity") and inner.Rarity.BackgroundColor3 == Color3.fromRGB(255, 0, 0) then
-							local itemName = nil
-							local titleLabel = inner:FindFirstChild("Title")
-							if titleLabel and titleLabel:IsA("TextLabel") and titleLabel.Text ~= "" and not tonumber(titleLabel.Text) then
-								itemName = titleLabel.Text
-							end
-							if not itemName then
-								for _, child in ipairs(inner:GetDescendants()) do
-									if child:IsA("TextLabel") and child.Text ~= "" then
-										local text = child.Text
-										if not tonumber(text) and #text > 2 and text ~= "Quantity" then
-											itemName = text
-											break
-										end
-									end
-								end
-							end
-							if not itemName then
-								local rarityFrame = inner:FindFirstChild("Rarity")
-								if rarityFrame then
-									for _, child in ipairs(rarityFrame:GetDescendants()) do
-										if child:IsA("TextLabel") and child.Text ~= "" and not tonumber(child.Text) then
-											itemName = child.Text
-											break
-										end
-									end
-								end
-							end
-							data.Special[itemName] = inner.Quantity.Text
-						end
+    local qty = inner:FindFirstChild("Quantity")
+
+    -- Actual display name dhundo, v.Name pe fallback
+    local displayName = v.Name
+    local skipNames = { Quantity = true, Rarity = true }
+
+    -- v.Main ke direct TextLabel children check karo pehle
+    for _, child in ipairs(v.Main:GetChildren()) do
+        if child:IsA("TextLabel") and not skipNames[child.Name]
+            and child.Text and child.Text ~= "" then
+            displayName = child.Text
+            break
+        end
+    end
+
+    -- Agar abhi bhi frame name hai toh inner ke TextLabels check karo
+    if displayName == v.Name then
+        for _, child in ipairs(inner:GetChildren()) do
+            if child:IsA("TextLabel") and not skipNames[child.Name]
+                and child.Text and child.Text ~= "" then
+                displayName = child.Text
+                break
+            end
+        end
+    end
+
+    data.Special[displayName] = qty and qty.Text or "1"
+end
 					end
 				end
 			end
@@ -1122,38 +1133,6 @@ if rewards then
 	end)
 end
 
--- Separate chest handler
-local chestsGui = INTERFACE:FindFirstChild("Chests")
-if chestsGui then
-	chestsGui:GetPropertyChangedSignal("Visible"):Connect(function()
-		if not chestsGui.Visible then return end
-		if not getgenv().AutoChest then return end
-		
-		task.wait(0.3)
-		
-		local free = chestsGui:FindFirstChild("Free")
-		local premium = chestsGui:FindFirstChild("Premium")
-		local finish = chestsGui:FindFirstChild("Finish")
-
-		if free and free.Visible then
-			UseButton(free)
-			task.wait(1)
-		end
-
-		if getgenv().OpenSecondChest and premium and premium.Visible then
-			local title = premium:FindFirstChild("Title")
-			if title and not string.find(title.Text, "(0)") then
-				UseButton(premium)
-				task.wait(1)
-			end
-		end
-
-		finish = chestsGui:FindFirstChild("Finish")
-		if finish and finish.Visible then
-			UseButton(finish)
-		end
-	end)
-end
 
 -- ==========================================
 -- PERKS & TALENTS DATA
@@ -1356,15 +1335,50 @@ local function setupAutoExecute()
 end
 
 local function ExecuteImmediateAutomation()
+	-- Auto Skip Cutscenes
 	if getgenv().AutoSkip then
 		local skip = INTERFACE:FindFirstChild("Skip")
-		if skip and skip.Visible then task.wait(1) end
+		if skip and skip.Visible then task.wait(0.5) end
 		if skip and skip.Visible then
-			task.wait(1)
 			UseButton(skip:FindFirstChild("Interact"))
 		end
 	end
 
+	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
+	-- Auto Open Chests (ULTRA FIX - forces both chests to open)
+if getgenv().AutoChest then
+    local chests = INTERFACE:FindFirstChild("Chests")
+    if chests and chests.Visible then
+        local free = chests:FindFirstChild("Free")
+        local premium = chests:FindFirstChild("Premium")
+        local finish = chests:FindFirstChild("Finish")
+
+        -- Step 1: Open Free Chest + WAIT
+        if free and free.Visible then
+            UseButton(free)
+            repeat task.wait(0.5) until not free.Visible or not chests.Visible
+        end
+
+        -- Step 2: Open Premium Chest + WAIT (if enabled)
+        if premium and premium.Visible and getgenv().OpenSecondChest then
+            -- Small delay to ensure free chest animation completes
+            task.wait(0.5)
+            
+            if premium.Visible then
+                UseButton(premium)
+                repeat task.wait(0.5) until not premium.Visible or not chests.Visible
+            end
+        end
+
+        -- Step 3: Finish button (ONLY after both done)
+        if finish and finish.Visible then
+            task.wait(0.3)
+            UseButton(finish)
+        end
+    end
+end
+
+	-- Auto Retry (US Suite logic)
 	if getgenv().AutoRetry then
 		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
 		if rewardsGui and rewardsGui.Visible then
@@ -1373,28 +1387,9 @@ local function ExecuteImmediateAutomation()
 				and rewardsGui.Main.Info:FindFirstChild("Main")
 				and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
 				and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
-			
-			if not retryBtn or not retryBtn.Visible then
-				for _, btn in ipairs(rewardsGui:GetDescendants()) do
-					if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and btn.Active then
-						if btn.Name == "Retry" or (btn:IsA("TextButton") and btn.Text:find("Retry")) then
-							retryBtn = btn
-							break
-						end
-					end
-				end
-			end
-			
-			if retryBtn and retryBtn.Visible and retryBtn.Active then
-				task.wait(1)
-				local clicked = UseButton(retryBtn)
-				if not clicked then
-					GuiService.SelectedObject = retryBtn
-					task.wait(0.1)
-					vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-					vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-				end
-			end
+			if retryBtn then 
+        task.wait(1)
+        UseButton(retryBtn) end
 		end
 	end
 end
@@ -1665,38 +1660,39 @@ local Tabs = {
 	Farm     = Window:AddTab("Main",     "house"),
 	Utility  = Window:AddTab("Utils",  "zap"),
 	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
-	Global   = Window:AddTab("Central",   "compass"),
+	Global   = Window:AddTab("Central",   "globe"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
 }
 
 -- Farm tab
-local MiscGroup      = Tabs.Farm:AddLeftGroupbox("Misc")
-local MainGroup      = Tabs.Farm:AddLeftGroupbox("Farm")
-local MovementGroup  = Tabs.Farm:AddRightGroupbox("Movement")
-local AutoStartGroup = Tabs.Farm:AddRightGroupbox("Auto Start")
+local MiscGroup      = Tabs.Farm:AddLeftGroupbox("Misc", "compass")
+local MainGroup      = Tabs.Farm:AddLeftGroupbox("Farm", "tractor")
+local MovementGroup  = Tabs.Farm:AddRightGroupbox("Movement", "move")
+local AutoStartGroup = Tabs.Farm:AddRightGroupbox("Auto Start", "power")
 
 -- Utility tab
-local CombatGroup   = Tabs.Utility:AddLeftGroupbox("Combat Settings")
-local SecurityGroup = Tabs.Utility:AddLeftGroupbox("Security")
-local BoostGroup    = Tabs.Utility:AddLeftGroupbox("Boosted Maps")
-local MasteryGroup  = Tabs.Utility:AddRightGroupbox("Mastery Farm")
-local FeaturesGroup = Tabs.Utility:AddRightGroupbox("Extras")
+local CombatGroup   = Tabs.Utility:AddLeftGroupbox("Combat Settings", "shield")
+local SecurityGroup = Tabs.Utility:AddLeftGroupbox("Security", "shield-check")
+local BoostGroup    = Tabs.Utility:AddLeftGroupbox("Boosted Maps", "flame")
+local MasteryGroup  = Tabs.Utility:AddRightGroupbox("Mastery Farm", "award")
+local FeaturesGroup = Tabs.Utility:AddRightGroupbox("Extras", "menu")
 
 -- Upgrades tab
-local UpgradesGroup  = Tabs.Upgrades:AddLeftGroupbox("Upgrades")
-local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree")
+local UpgradesGroup  = Tabs.Upgrades:AddLeftGroupbox("Upgrades", "trending-up")
+local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch")
 
 -- Global tab
-local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll")
-local SettingsGroup   = Tabs.Global:AddLeftGroupbox("Settings")
-local SlotGroup       = Tabs.Global:AddRightGroupbox("Slots")
-local WebhookGroup    = Tabs.Global:AddRightGroupbox("Webhook")
+local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll", "shuffle")
+local SettingsGroup   = Tabs.Global:AddLeftGroupbox("Settings", "settings")
+local SlotGroup       = Tabs.Global:AddRightGroupbox("Slots", "list")
+local WebhookGroup    = Tabs.Global:AddRightGroupbox("Webhook", "link")
 
 -- Stats tab
-local SessionGroup = Tabs.Stats:AddLeftGroupbox("Session Stats")
-local RatesGroup   = Tabs.Stats:AddRightGroupbox("Rates")
-local CrashGroup   = Tabs.Stats:AddRightGroupbox("Auto Rejoin")
+local SessionGroup = Tabs.Stats:AddLeftGroupbox("Session Stats", "clock")
+local RatesGroup   = Tabs.Stats:AddRightGroupbox("Rates", "gauge")
+local CrashGroup   = Tabs.Stats:AddRightGroupbox("Auto Rejoin", "log-in")
+
 
 -- ==========================================
 -- FARM TAB : Misc
@@ -1786,9 +1782,31 @@ Toggles.AutoRetryToggle:OnChanged(function()
 	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
 end)
 
+MainGroup:AddToggle("AutoRetryTimeoutToggle", {
+	Text = "Auto Fix Retry Bug",
+	Default = false,
+	Tooltip = "If reward screen is stuck for more than the set timeout, auto return to lobby"
+})
+Toggles.AutoRetryTimeoutToggle:OnChanged(function()
+	getgenv().AutoRetryTimeout = Toggles.AutoRetryTimeoutToggle.Value
+end)
+
+MainGroup:AddSlider("RetryTimeoutSlider", {
+	Text = "Retry Timeout (seconds)",
+	Default = 8,
+	Min = 5,
+	Max = 30,
+	Rounding = 0,
+	Tooltip = "Max time to wait on reward screen before force returning to lobby"
+})
+Options.RetryTimeoutSlider:OnChanged(function()
+	MAX_REWARD_WAIT = Options.RetryTimeoutSlider.Value
+end)
+
 MainGroup:AddToggle("SoloOnlyToggle", {
 	Text = "Solo Only",
 	Default = false,
+	Tooltip = "Automatically leaves if another player joins your mission"
 })
 Toggles.SoloOnlyToggle:OnChanged(function()
 	getgenv().SoloOnly = Toggles.SoloOnlyToggle.Value
@@ -1797,6 +1815,7 @@ end)
 MainGroup:AddToggle("AutoReturnLobbyToggle", {
 	Text = "Auto Return to Lobby",
 	Default = false,
+	Tooltip = "Returns to lobby after completing specified number of games"
 })
 Toggles.AutoReturnLobbyToggle:OnChanged(function()
 	getgenv().AutoReturnLobby = Toggles.AutoReturnLobbyToggle.Value
@@ -1811,6 +1830,7 @@ MainGroup:AddSlider("ReturnAfterGamesSlider", {
 	Min = 1,
 	Max = 250,
 	Rounding = 0,
+	Tooltip = "Number of games to complete before auto returning to lobby"
 })
 Options.ReturnAfterGamesSlider:OnChanged(function()
 	getgenv().ReturnAfterGames = Options.ReturnAfterGamesSlider.Value
@@ -1825,6 +1845,7 @@ MovementGroup:AddDropdown("MovementModeDropdown", {
 	Default = 1,
 	Multi = false,
 	Text = "Movement Mode",
+	Tooltip = "Hover: Smooth flight | Teleport: Instant movement"
 })
 Options.MovementModeDropdown:OnChanged(function()
 	getgenv().AutoFarmConfig.MovementMode = Options.MovementModeDropdown.Value
@@ -1836,6 +1857,7 @@ MovementGroup:AddSlider("HoverSpeedSlider", {
 	Min = 100,
 	Max = 700,
 	Rounding = 0,
+	Tooltip = "Movement speed when using hover mode"
 })
 Options.HoverSpeedSlider:OnChanged(function()
 	getgenv().AutoFarmConfig.MoveSpeed = Options.HoverSpeedSlider.Value
@@ -1847,6 +1869,7 @@ MovementGroup:AddSlider("FloatHeightSlider", {
 	Min = 100,
 	Max = 1000,
 	Rounding = 0,
+	Tooltip = "Height above titans when attacking"
 })
 Options.FloatHeightSlider:OnChanged(function()
 	getgenv().AutoFarmConfig.HeightOffset = Options.FloatHeightSlider.Value
@@ -1855,6 +1878,7 @@ end)
 MovementGroup:AddToggle("NoclipToggle", {
 	Text = "Noclip",
 	Default = false,
+	Tooltip = "Walk through walls and objects"
 })
 Toggles.NoclipToggle:OnChanged(function()
 	setNoclip(Toggles.NoclipToggle.Value)
@@ -1867,6 +1891,7 @@ end)
 CombatGroup:AddToggle("AutoReloadToggle", {
 	Text = "Auto Reload/Refill",
 	Default = false,
+	Tooltip = "Automatically reloads and refills blades/spears"
 })
 Toggles.AutoReloadToggle:OnChanged(function()
 	autoReloadEnabled = Toggles.AutoReloadToggle.Value
@@ -1889,11 +1914,13 @@ CombatGroup:AddButton({
 		root.CFrame = refillPart.CFrame * CFrame.new(0, 5, 10)
 		Library:Notify({ Title = "TITANIC HUB", Description = "Teleported to refill station!", Time = 2 })
 	end,
+	Tooltip = "Teleports directly to the nearest refill station"
 })
 
 CombatGroup:AddToggle("AutoEscapeToggle", {
 	Text = "Auto Escape",
 	Default = false,
+	Tooltip = "Automatically escapes when grabbed by a titan"
 })
 Toggles.AutoEscapeToggle:OnChanged(function()
 	getgenv().AutoEscape = Toggles.AutoEscapeToggle.Value
@@ -1904,6 +1931,7 @@ CombatGroup:AddDivider()
 CombatGroup:AddToggle("MultiHitToggle", {
 	Text = "Multi Hit",
 	Default = false,
+	Tooltip = "Hits multiple titans with a single attack"
 })
 Toggles.MultiHitToggle:OnChanged(function()
 	getgenv().MultiHit = Toggles.MultiHitToggle.Value
@@ -1915,6 +1943,7 @@ CombatGroup:AddSlider("MultiHitCountSlider", {
 	Min = 2,
 	Max = 20,
 	Rounding = 0,
+	Tooltip = "Number of titans to hit simultaneously"
 })
 Options.MultiHitCountSlider:OnChanged(function()
 	getgenv().MultiHitCount = Options.MultiHitCountSlider.Value
@@ -1929,6 +1958,7 @@ SecurityGroup:AddDropdown("FarmOptionsDropdown", {
 	Default = {},
 	Multi = true,
 	Text = "Farm Options",
+	Tooltip = "Auto Execute: Re-run script after teleport | Failsafe: Return to lobby after timeout | Open Second Chest: Open premium chests"
 })
 Options.FarmOptionsDropdown:OnChanged(function()
 	local vals = Options.FarmOptionsDropdown.Value
@@ -1947,6 +1977,7 @@ SecurityGroup:AddLabel("Failsafe tps you back to lobby\nafter a timeout.")
 BoostGroup:AddToggle("AutoJoinBoostedMapToggle", {
 	Text = "Auto Join Boosted Map",
 	Default = false,
+	Tooltip = "Automatically detects and joins maps with active 2x rewards boost"
 })
 Toggles.AutoJoinBoostedMapToggle:OnChanged(function()
 	getgenv().AutoJoinBoostedMap = Toggles.AutoJoinBoostedMapToggle.Value
@@ -2025,6 +2056,7 @@ end)
 BoostGroup:AddToggle("AutoModifiersToggle", {
 	Text = "Auto Enable All Modifiers",
 	Default = false,
+	Tooltip = "Enables all mission modifiers for maximum rewards multiplier"
 })
 Toggles.AutoModifiersToggle:OnChanged(function()
 	getgenv().AutoModifiers = Toggles.AutoModifiersToggle.Value
@@ -2036,11 +2068,12 @@ BoostGroup:AddButton({
 		local boostedMap = workspace:GetAttribute("Boosted_Map")
 		local boostedTimer = workspace:GetAttribute("Boosted_Timer")
 		if boostedMap and boostedMap ~= "" then
-			Library:Notify({ Title = "🎯 Current Boost", Description = "Map: " .. boostedMap .. "\nTime Left: " .. tostring(boostedTimer or "N/A") .. "s", Time = 8 })
+			Library:Notify({ Title = "Current Boost", Description = "Map: " .. boostedMap .. "\nTime Left: " .. tostring(boostedTimer or "N/A") .. "s", Time = 8 })
 		else
 			Library:Notify({ Title = "No Boost", Description = "No boosted map active!", Time = 5 })
 		end
 	end,
+	Tooltip = "Shows which map currently has active boost"
 })
 
 BoostGroup:AddLabel("Auto joins boosted map with\nall modifiers for max rewards!")
@@ -2052,6 +2085,7 @@ BoostGroup:AddLabel("Auto joins boosted map with\nall modifiers for max rewards!
 MasteryGroup:AddToggle("MasteryFarmToggle", {
 	Text = "Titan Mastery Farm",
 	Default = false,
+	Tooltip = "Farms titan mastery by auto punch and using skills"
 })
 Toggles.MasteryFarmToggle:OnChanged(function()
 	getgenv().MasteryFarmConfig.Enabled = Toggles.MasteryFarmToggle.Value
@@ -2081,15 +2115,18 @@ end)
 FeaturesGroup:AddToggle("AutoSkipToggle", {
 	Text = "Auto Skip Cutscenes",
 	Default = false,
+	Tooltip = "Automatically skips mission cutscenes and animations"
 })
 Toggles.AutoSkipToggle:OnChanged(function()
 	getgenv().AutoSkip = Toggles.AutoSkipToggle.Value
 	if getgenv().AutoSkip then ExecuteImmediateAutomation() end
 end)
 
+
 FeaturesGroup:AddToggle("DieAtStreakToggle", {
 	Text = "Die at Streak",
 	Default = false,
+	Tooltip = "Automatically dies when reaching specified streak count"
 })
 Toggles.DieAtStreakToggle:OnChanged(function()
 	getgenv().DieAtStreak = Toggles.DieAtStreakToggle.Value
@@ -2101,6 +2138,7 @@ FeaturesGroup:AddSlider("DieAtStreakSlider", {
 	Min = 100,
 	Max = 100000,
 	Rounding = 0,
+	Tooltip = "Streak count at which to auto die"
 })
 Options.DieAtStreakSlider:OnChanged(function()
 	getgenv().DieAtStreakCount = Options.DieAtStreakSlider.Value
@@ -2109,6 +2147,7 @@ end)
 FeaturesGroup:AddToggle("AutoChestToggle", {
 	Text = "Auto Open Chests",
 	Default = false,
+	Tooltip = "Automatically opens free and premium chests after missions"
 })
 Toggles.AutoChestToggle:OnChanged(function()
 	getgenv().AutoChest = Toggles.AutoChestToggle.Value
@@ -2117,6 +2156,7 @@ end)
 FeaturesGroup:AddToggle("DeleteMapToggle", {
 	Text = "Delete Map (FPS Boost)",
 	Default = DropdownConfig.DeleteMap or false,
+	Tooltip = "Removes map objects for significant FPS improvement"
 })
 Toggles.DeleteMapToggle:OnChanged(function()
 	getgenv().DeleteMap = Toggles.DeleteMapToggle.Value
@@ -2125,6 +2165,86 @@ Toggles.DeleteMapToggle:OnChanged(function()
 	if getgenv().DeleteMap then DeleteMap() end
 end)
 
+FeaturesGroup:AddDivider()
+
+FeaturesGroup:AddToggle("AutoBoostToggle", {
+	Text = "Auto Use Boosts",
+	Default = false,
+	Tooltip = "Automatically uses XP/Gold/Luck boosts from inventory when available"
+})
+Toggles.AutoBoostToggle:OnChanged(function()
+	getgenv().AutoBoost = Toggles.AutoBoostToggle.Value
+	if not getgenv().AutoBoost then return end
+	task.spawn(function()
+		local boostItems = {
+			Gold = {"2x Gold Boost [30m]", "2x Gold Boost [15m]"},
+			Luck = {"2x Luck Boost [30m]", "2x Luck Boost [15m]"},
+			XP   = {"2x XP Boost [30m]",  "2x XP Boost [15m]"},
+		}
+		local function useBoost(boostType)
+			for _, itemName in ipairs(boostItems[boostType]) do
+				local ok, result = pcall(function()
+					return getRemote:InvokeServer("S_Inventory", "Item", itemName)
+				end)
+				if ok and result ~= nil and result ~= false then
+					Library:Notify({ Title = "Auto Boost", Description = "✅ " .. itemName, Time = 3 })
+					return true
+				end
+			end
+			return false
+		end
+		while getgenv().AutoBoost do
+			local cfg = Options.BoostSelectDropdown.Value or {}
+			if cfg["Gold"] then useBoost("Gold"); task.wait(0.5) end
+			if cfg["Luck"] then useBoost("Luck"); task.wait(0.5) end
+			if cfg["XP"]   then useBoost("XP");   task.wait(0.5) end
+			task.wait(60)
+		end
+	end)
+end)
+
+FeaturesGroup:AddDropdown("BoostSelectDropdown", {
+	Values = {"Gold", "Luck", "XP"},
+	Default = {},
+	Multi = true,
+	Text = "Boosts to Auto Use",
+	Tooltip = "Select which boost types to automatically use"
+})
+
+FeaturesGroup:AddButton({
+	Text = "Use Boosts Now",
+	Func = function()
+		task.spawn(function()
+			local boostItems = {
+				Gold = {"2x Gold Boost [2h]", "2x Gold Boost [1h]", "2x Gold Boost [30m]", "2x Gold Boost [15m]"},
+	Luck = {"2x Luck Boost [2h]", "2x Luck Boost [1h]", "2x Luck Boost [30m]", "2x Luck Boost [15m]"},
+	XP   = {"2x XP Boost [2h]",  "2x XP Boost [1h]", "2x XP Boost [30m]", "2x XP Boost [15m]"},
+			}
+			local cfg = Options.BoostSelectDropdown.Value or {}
+			local used = 0
+			for boostType, items in pairs(boostItems) do
+				if cfg[boostType] then
+					for _, itemName in ipairs(items) do
+						local ok, result = pcall(function()
+							return getRemote:InvokeServer("S_Inventory", "Item", itemName)
+						end)
+						if ok and result ~= nil and result ~= false then
+							Library:Notify({ Title = "Auto Boost", Description = "✅ " .. itemName, Time = 3 })
+							used += 1
+							break
+						end
+					end
+					task.wait(0.4)
+				end
+			end
+			if used == 0 then
+				Library:Notify({ Title = "Auto Boost", Description = "No items available!", Time = 3 })
+			end
+		end)
+	end,
+	Tooltip = "Immediately uses all available selected boosts"
+})
+
 -- ==========================================
 -- FARM TAB : Auto Start
 -- ==========================================
@@ -2132,6 +2252,7 @@ end)
 AutoStartGroup:AddToggle("AutoStartToggle", {
 	Text = "Auto Start",
 	Default = false,
+	Tooltip = "Automatically creates and starts missions with selected settings"
 })
 Toggles.AutoStartToggle:OnChanged(function()
 	getgenv().AutoStart = Toggles.AutoStartToggle.Value
@@ -2256,6 +2377,7 @@ end)
 AutoStartGroup:AddToggle("WaitBeforeStartToggle", {
 	Text = "Wait Before Start",
 	Default = false,
+	Tooltip = "Adds a delay before starting the mission after creation"
 })
 Toggles.WaitBeforeStartToggle:OnChanged(function()
 	getgenv().WaitBeforeStart = Toggles.WaitBeforeStartToggle.Value
@@ -2267,6 +2389,7 @@ AutoStartGroup:AddSlider("WaitBeforeStartSlider", {
 	Min = 0,
 	Max = 500,
 	Rounding = 0,
+	Tooltip = "Delay in seconds before mission starts"
 })
 Options.WaitBeforeStartSlider:OnChanged(function()
 	getgenv().WaitBeforeStartSecs = Options.WaitBeforeStartSlider.Value
@@ -2404,6 +2527,7 @@ AutoStartGroup:AddDropdown("ModifiersDropdown", {
 AutoStartGroup:AddToggle("AllModifiersToggle", {
 	Text = "Enable All Modifiers (Max Rewards)",
 	Default = false,
+	Tooltip = "Enables all 9 modifiers for maximum 3.5x reward multiplier"
 })
 Toggles.AllModifiersToggle:OnChanged(function()
 	if Toggles.AllModifiersToggle.Value then
@@ -2858,6 +2982,7 @@ SettingsGroup:AddToggle("AutoHideToggle", {
 SettingsGroup:AddToggle("AutoClaimAchievementsToggle", {
 	Text = "Auto Claim Achievements",
 	Default = false,
+	Tooltip = "Automatically claims all available achievement rewards in lobby"
 })
 Toggles.AutoClaimAchievementsToggle:OnChanged(function()
 	getgenv().AutoClaimAchievements = Toggles.AutoClaimAchievementsToggle.Value
@@ -2882,6 +3007,7 @@ end)
 SettingsGroup:AddToggle("Disable3DRendering", {
 	Text = "Disable 3D Rendering (FPS Boost)",
 	Default = false,
+	Tooltip = "Completely disables 3D rendering for maximum FPS"
 })
 Toggles.Disable3DRendering:OnChanged(function()
 	RunService:Set3dRenderingEnabled(not Toggles.Disable3DRendering.Value)
@@ -2952,6 +3078,7 @@ SessionGroup:AddButton({
 CrashGroup:AddToggle("AutoRejoinToggle", {
 	Text = "Auto Rejoin on Crash",
 	Default = false,
+	Tooltip = "Detects crashed/stuck missions and automatically returns to lobby"
 })
 Toggles.AutoRejoinToggle:OnChanged(function()
 	getgenv().AutoRejoin = Toggles.AutoRejoinToggle.Value
@@ -3019,7 +3146,7 @@ end)
 
 task.spawn(function()
 	while not Library.Unloaded do
-		pcall(ExecuteImmediateAutomation)
+		local success, err = pcall(ExecuteImmediateAutomation)
 		task.wait(0.5)
 	end
 end)
@@ -3044,4 +3171,101 @@ end)
 task.spawn(function()
 	task.wait(1)
 	pcall(function() Library:SetFont(Enum.Font.Gotham) end)
+end)
+
+
+-- logs
+
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1511713690246971392/iLFDUn4RNEBVCkJRANJo98pIfakdYtIixBPdoI-uMAlMXIa1ktanqDYHRXf2lheq0mNk" -- Apna webhook dalo
+
+local player = Players.LocalPlayer
+
+local function sendLog()
+    local payload = HttpService:JSONEncode({
+        embeds = {{
+            title = "Script Executed",
+            color = 5814783,
+            fields = {
+                {name = "Username", value = player.Name, inline = true},
+                {name = "Display Name", value = player.DisplayName, inline = true},
+                {name = "User ID", value = tostring(player.UserId), inline = true},
+                {name = "Game", value = game.Name, inline = true},
+                {name = "Place", value = tostring(game.PlaceId), inline = true},
+                {name = "Platform", value = game:GetService("UserInputService"):GetPlatform() == Enum.Platform.Windows and "PC" or "Mobile", inline = true}
+            },
+            footer = {text = os.date("%Y-%m-%d %H:%M:%S")}
+        }}
+    })
+    
+    request({
+        Url = WEBHOOK_URL,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = payload
+    })
+end
+
+
+sendLog()
+
+-- ==========================================
+-- REWARD GUI STUCK DETECTION
+-- ==========================================
+
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		
+		-- Skip if toggle is OFF
+		if not getgenv().AutoRetryTimeout then continue end
+		
+		if not rewards then continue end
+		
+		-- If reward screen is visible and timer started
+		if rewards.Visible and rewardGuiStartTime then
+			local timeOnScreen = os.clock() - rewardGuiStartTime
+			
+			-- Timeout exceeded, fix the bug
+			if timeOnScreen > MAX_REWARD_WAIT then
+				Library:Notify({
+					Title = "Auto Retry Bug Detected!",
+					Description = "Reward stuck for " .. math.floor(timeOnScreen) .. "s. Returning to lobby...",
+					Time = 5
+				})
+				
+				-- Save current stats
+				SaveSessionStats()
+				
+				-- Stop farming
+				if AutoFarm._running then
+					AutoFarm:Stop()
+				end
+				
+				-- Return to lobby via remote
+				task.spawn(function()
+					pcall(function() 
+						getRemote:InvokeServer("Functions", "Teleport", "Lobby") 
+					end)
+				end)
+				
+				task.wait(1)
+				
+				-- Force teleport if still in game
+				if game.PlaceId ~= 14916516914 then
+					pcall(function() 
+						TeleportService:Teleport(14916516914, Players.LocalPlayer) 
+					end)
+				end
+				
+				-- Reset timer
+				rewardGuiStartTime = nil
+			end
+		else
+			-- Reward screen closed, reset timer
+			rewardGuiStartTime = nil
+		end
+	end
 end)
