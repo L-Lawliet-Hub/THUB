@@ -1336,13 +1336,34 @@ end
 
 local function ExecuteImmediateAutomation()
 	-- Auto Skip Cutscenes
-	if getgenv().AutoSkip then
-		local skip = INTERFACE:FindFirstChild("Skip")
-		if skip and skip.Visible then task.wait(0.5) end
-		if skip and skip.Visible then
-			UseButton(skip:FindFirstChild("Interact"))
-		end
-	end
+	-- Auto Skip Cutscenes + TP to Refill
+if getgenv().AutoSkip then
+    local skip = INTERFACE:FindFirstChild("Skip")
+    
+    if skip and skip.Visible then
+        -- Try button multiple times for reliability
+        for i = 1, 5 do
+            local interact = skip:FindFirstChild("Interact")
+            if interact then
+                UseButton(interact)
+            end
+            task.wait(0.3)
+            if not skip.Visible then break end
+        end
+        
+        -- TP to refill after skip
+        task.wait(0.5)
+        pcall(function()
+            local refillPart = getCachedRefillPart()
+            if refillPart and refillPart.Parent then
+                local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    root.CFrame = refillPart.CFrame * CFrame.new(0, 5, 10)
+                end
+            end
+        end)
+    end
+end
 
 	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
 	-- Auto Open Chests (ULTRA FIX - forces both chests to open)
@@ -1378,20 +1399,30 @@ if getgenv().AutoChest then
     end
 end
 
-	-- Auto Retry (US Suite logic)
-	if getgenv().AutoRetry then
-		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
-		if rewardsGui and rewardsGui.Visible then
-			local retryBtn = rewardsGui:FindFirstChild("Main")
-				and rewardsGui.Main:FindFirstChild("Info")
-				and rewardsGui.Main.Info:FindFirstChild("Main")
-				and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
-				and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
-			if retryBtn then 
+	-- ==========================================
+-- AUTO RETRY (Button + Remote)
+-- ==========================================
+
+if getgenv().AutoRetry then
+    local rewardsGui = INTERFACE:FindFirstChild("Rewards")
+    if rewardsGui and rewardsGui.Visible then
+        -- Step 1: Try UI button first
+        local retryBtn = rewardsGui:FindFirstChild("Main")
+            and rewardsGui.Main:FindFirstChild("Info")
+            and rewardsGui.Main.Info:FindFirstChild("Main")
+            and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
+            and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
+        
+        if retryBtn then
+            UseButton(retryBtn)
+        end
+        
+        -- Step 2: Wait 1s then remote
         task.wait(1)
-        UseButton(retryBtn) end
-		end
-	end
+        pcall(function()
+            getRemote:InvokeServer("Functions", "Retry", "Add")
+        end)
+    end
 end
 
 local function roll(targets, rarities)
@@ -1659,7 +1690,7 @@ local Window = Library:CreateWindow({
 local Tabs = {
 	Farm     = Window:AddTab("Main",     "house"),
 	Utility  = Window:AddTab("Utils",  "zap"),
-	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
+	Upgrades = Window:AddTab("Upgrades", "trending-up"),
 	Global   = Window:AddTab("Central",   "globe"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
@@ -2560,45 +2591,52 @@ UpgradesGroup:AddToggle("AutoUpgradeToggle", {
 Toggles.AutoUpgradeToggle:OnChanged(function()
 	getgenv().AutoUpgrade = Toggles.AutoUpgradeToggle.Value
 	if not getgenv().AutoUpgrade then return end
-	if game.PlaceId ~= 14916516914 then
-		Library:Notify({ Title = "Auto Upgrade", Description = "Works in Lobby!", Time = 4 })
-		getgenv().AutoUpgrade = false
-		Toggles.AutoUpgradeToggle:SetValue(false)
-		return
-	end
 	task.spawn(function()
+		if game.PlaceId ~= 14916516914 then
+			Library:Notify({ Title = "Auto Upgrade", Description = "Works in lobby!", Time = 3 })
+			getgenv().AutoUpgrade = false
+			Toggles.AutoUpgradeToggle:SetValue(false)
+			return
+		end
+
+		local slot = lp:GetAttribute("Slot")
+		if not slot then
+			getRemote:InvokeServer("Functions", "Select", "A")
+			local waited = 0
+			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
+			slot = lp:GetAttribute("Slot")
+		end
+
+		if not slot then
+			Library:Notify({ Title = "Auto Upgrade", Description = "Slot not selected!", Time = 3 })
+			getgenv().AutoUpgrade = false
+			Toggles.AutoUpgradeToggle:SetValue(false)
+			return
+		end
+
+		Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " upgrading...", Time = 2 })
+
+		local allUpgrades = {
+			"Crit_Damage", "Crit_Chance",
+			"ODM_Damage", "ODM_Control", "ODM_Gas", "ODM_Speed", "Blade_Durability", "ODM_Range",
+			"Blast_Radius", "TS_Control", "TS_Range", "TS_Damage", "TS_Gas", "TS_Speed",
+		}
+
 		while getgenv().AutoUpgrade do
-			if game.PlaceId ~= 14916516914 then
-				getgenv().AutoUpgrade = false
-				Toggles.AutoUpgradeToggle:SetValue(false)
-				break
-			end
-			local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
-			if not ok or not liveData or type(liveData) ~= "table" then task.wait(2) continue end
-
-			local slotIndex = liveData.Current_Slot
-			local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
-			if not slotData then task.wait(2) continue end
-
-			local weapon = slotData.Weapon
-			local upgrades = slotData.Upgrades and slotData.Upgrades[weapon]
-			if not upgrades then task.wait(2) continue end
-
 			local anyDone = false
-			for upg, lvl in next, upgrades do
-				if lvl >= 15 then continue end
-				local success, result = pcall(function()
-					return getRemote:InvokeServer("S_Equipment", "Upgrade", upg)
+			for _, upg in ipairs(allUpgrades) do
+				if not getgenv().AutoUpgrade then break end
+				local ok, result = pcall(function()
+					return getRemote:InvokeServer("S_Equipment", "Upgrade", {upg})
 				end)
-				if success and result then
+				if ok and result ~= nil and result ~= false then
 					anyDone = true
-					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " ") .. " Lv " .. tostring(lvl + 1), Time = 1.5 })
+					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " "), Time = 1.5 })
 					task.wait(0.5)
 				end
 			end
-
 			if not anyDone then
-				Library:Notify({ Title = "Auto Upgrade", Description = weapon .. " fully maxed on slot " .. tostring(slotIndex), Time = 3 })
+				Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " fully maxed!", Time = 3 })
 				getgenv().AutoUpgrade = false
 				Toggles.AutoUpgradeToggle:SetValue(false)
 				break
@@ -2737,53 +2775,63 @@ Toggles.AutoSkillTree:OnChanged(function()
 	if game.PlaceId ~= 14916516914 then return end
 
 	task.spawn(function()
-		while getgenv().AutoSkillTree do
-			local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
-			if not ok or not liveData or type(liveData) ~= "table" then task.wait(2) continue end
+		local slot = lp:GetAttribute("Slot")
+		if not slot then
+			getRemote:InvokeServer("Functions", "Select", "A")
+			local waited = 0
+			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
+			slot = lp:GetAttribute("Slot")
+		end
 
-			local slotIndex = liveData.Current_Slot
-			local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
-			if not slotData then task.wait(2) continue end
+		if not slot then
+			Library:Notify({ Title = "Skill Tree", Description = "Slot not Selected!", Time = 3 })
+			getgenv().AutoSkillTree = false
+			Toggles.AutoSkillTree:SetValue(false)
+			return
+		end
 
-			local weapon = slotData.Weapon
-			local middle = Options.MiddlePathDropdown.Value
-			local left   = Options.LeftPathDropdown.Value
-			local right  = Options.RightPathDropdown.Value
+		local weapon = Options.MiddlePathDropdown.Value == "Damage" and "Blades" or "Blades"
 
-			local middlePath = SkillPaths[weapon] and SkillPaths[weapon][middle]
-			local leftPath   = SkillPaths.Support[left]
-			local rightPath  = SkillPaths.Defense[right]
+		local middle = Options.MiddlePathDropdown.Value
+		local left   = Options.LeftPathDropdown.Value
+		local right  = Options.RightPathDropdown.Value
 
-			local p1 = Options.Priority1Dropdown.Value or "Middle"
-			local p2 = Options.Priority2Dropdown.Value or "Left"
-			local p3 = Options.Priority3Dropdown.Value or "None"
+		local middlePath = SkillPaths[weapon] and SkillPaths[weapon][middle]
+		local leftPath   = SkillPaths.Support[left]
+		local rightPath  = SkillPaths.Defense[right]
 
-			local pathMap = { Left = leftPath, Middle = middlePath, Right = rightPath }
-			local paths, used = {}, {}
+		local p1 = Options.Priority1Dropdown.Value or "Middle"
+		local p2 = Options.Priority2Dropdown.Value or "Left"
+		local p3 = Options.Priority3Dropdown.Value or "None"
 
-			local function addPath(p)
-				if not used[p] and pathMap[p] then
-					table.insert(paths, pathMap[p])
-					used[p] = true
-				end
+		local pathMap = { Left = leftPath, Middle = middlePath, Right = rightPath }
+		local paths, used = {}, {}
+		local function addPath(p)
+			if not used[p] and pathMap[p] then
+				table.insert(paths, pathMap[p])
+				used[p] = true
 			end
-			addPath(p1) addPath(p2) addPath(p3)
+		end
+		addPath(p1); addPath(p2); addPath(p3)
 
+		while getgenv().AutoSkillTree do
 			local anyUnlocked = false
 			for _, path in ipairs(paths) do
 				for _, skillId in ipairs(path) do
-					if table.find(slotData.Skills.Unlocked, skillId) then continue end
-					local success = getRemote:InvokeServer("S_Equipment", "Unlock", {skillId})
-					if success then
+					if not getgenv().AutoSkillTree then break end
+					local ok, result = pcall(function()
+						return getRemote:InvokeServer("S_Equipment", "Unlock", {skillId})
+					end)
+					if ok and result ~= nil and result ~= false then
 						anyUnlocked = true
-						Library:Notify({ Title = "Unlocked Skill", Description = "ID: " .. skillId, Time = 1 })
+						Library:Notify({ Title = "Skill Unlocked", Description = "ID: " .. skillId, Time = 1 })
 						task.wait(0.5)
 					end
 				end
 			end
 
 			if not anyUnlocked then
-				Library:Notify({ Title = "Skill Tree", Description = "All selected paths complete.", Time = 3 })
+				Library:Notify({ Title = "Skill Tree", Description = "All selected paths complete!", Time = 3 })
 				getgenv().AutoSkillTree = false
 				Toggles.AutoSkillTree:SetValue(false)
 				break
@@ -2792,7 +2840,6 @@ Toggles.AutoSkillTree:OnChanged(function()
 		end
 	end)
 end)
-
 SkillTreeGroup:AddDropdown("MiddlePathDropdown", {
 	Values = {"Damage", "Critical"},
 	Default = 2,
