@@ -121,6 +121,7 @@ getgenv().MultiHitCount = 3
 getgenv().LastTitanWait = false
 getgenv().LastTitanWaitSecs = 60
 getgenv().OpenSecondChest = false
+getgenv().HideDamageText = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
