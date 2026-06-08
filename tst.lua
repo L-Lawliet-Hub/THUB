@@ -121,8 +121,8 @@ getgenv().MultiHitCount = 3
 getgenv().LastTitanWait = false
 getgenv().LastTitanWaitSecs = 60
 getgenv().OpenSecondChest = false
-getgenv().HideDamageText = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
+getgenv().HideDamageText = false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
 getgenv().CurrentStatusLabel = nil
@@ -892,7 +892,8 @@ local gamesPlayed = tonumber(readfile(path))
 
 local webhook
 
-
+local MAX_REWARD_WAIT = 8
+local rewardGuiStartTime = nil
 
 -- ==========================================
 -- REWARDS LISTENER
@@ -900,8 +901,14 @@ local webhook
 
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
-		if not rewards.Visible then return end
-					
+		if not rewards.Visible then 
+			-- Reward screen closed, reset stuck timer
+			rewardGuiStartTime = nil
+			return 
+		end
+		
+		-- Start stuck detection timer when reward screen opens
+		rewardGuiStartTime = os.clock()
 
 		-- Reset mission start timer
 		getgenv()._missionStartTime = nil
@@ -1328,35 +1335,14 @@ local function setupAutoExecute()
 end
 
 local function ExecuteImmediateAutomation()
-
--- Auto Skip Cutscenes + Always TP to Refill
-if getgenv().AutoSkip then
-    local skip = INTERFACE:FindFirstChild("Skip")
-    
-    if skip and skip.Visible then
-        -- Click skip multiple times
-        for i = 1, 5 do
-            local interact = skip:FindFirstChild("Interact")
-            if interact then
-                UseButton(interact)
-            end
-            task.wait(0.3)
-            if not skip.Visible then break end
-        end
-    end
-    
-    -- ✅ ALWAYS TP to refill (chahe skip tha ya nahi)
-    task.wait(0.5)
-    pcall(function()
-        local refillPart = getCachedRefillPart()
-        if refillPart and refillPart.Parent then
-            local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-            if root then
-                root.CFrame = refillPart.CFrame * CFrame.new(0, 5, 10)
-            end
-        end
-    end)
-end
+	-- Auto Skip Cutscenes
+	if getgenv().AutoSkip then
+		local skip = INTERFACE:FindFirstChild("Skip")
+		if skip and skip.Visible then task.wait(0.5) end
+		if skip and skip.Visible then
+			UseButton(skip:FindFirstChild("Interact"))
+		end
+	end
 
 	-- Auto Open Chests (US Suite logic — polling based, works even if event missed)
 	-- Auto Open Chests (ULTRA FIX - forces both chests to open)
@@ -1392,32 +1378,21 @@ if getgenv().AutoChest then
     end
 end
 
-	-- ==========================================
--- AUTO RETRY (Button + Remote)
--- ==========================================
-
-if getgenv().AutoRetry then
-    local rewardsGui = INTERFACE:FindFirstChild("Rewards")
-    if rewardsGui and rewardsGui.Visible then
-        -- Step 1: Try UI button first
-        local retryBtn = rewardsGui:FindFirstChild("Main")
-            and rewardsGui.Main:FindFirstChild("Info")
-            and rewardsGui.Main.Info:FindFirstChild("Main")
-            and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
-            and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
-        
-        if retryBtn then
-            UseButton(retryBtn)
-        end
-        
-        -- Step 2: Wait 1s then remote
+	-- Auto Retry (US Suite logic)
+	if getgenv().AutoRetry then
+		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
+		if rewardsGui and rewardsGui.Visible then
+			local retryBtn = rewardsGui:FindFirstChild("Main")
+				and rewardsGui.Main:FindFirstChild("Info")
+				and rewardsGui.Main.Info:FindFirstChild("Main")
+				and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
+				and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
+			if retryBtn then 
         task.wait(1)
-        pcall(function()
-            getRemote:InvokeServer("Functions", "Retry", "Add")
-        end)
-    end
+        UseButton(retryBtn) end
+		end
+	end
 end
-
 
 local function roll(targets, rarities)
 	if not PlayerGui.Interface.Customisation.Visible then return end
@@ -1684,7 +1659,7 @@ local Window = Library:CreateWindow({
 local Tabs = {
 	Farm     = Window:AddTab("Main",     "house"),
 	Utility  = Window:AddTab("Utils",  "zap"),
-	Upgrades = Window:AddTab("Upgrades", "trending-up"),
+	Upgrades = Window:AddTab("Upgrades(Under Dev.)", "trending-up"),
 	Global   = Window:AddTab("Central",   "globe"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
@@ -1807,7 +1782,26 @@ Toggles.AutoRetryToggle:OnChanged(function()
 	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
 end)
 
+MainGroup:AddToggle("AutoRetryTimeoutToggle", {
+	Text = "Auto Fix Retry Bug",
+	Default = false,
+	Tooltip = "If reward screen is stuck for more than the set timeout, auto return to lobby"
+})
+Toggles.AutoRetryTimeoutToggle:OnChanged(function()
+	getgenv().AutoRetryTimeout = Toggles.AutoRetryTimeoutToggle.Value
+end)
 
+MainGroup:AddSlider("RetryTimeoutSlider", {
+	Text = "Retry Timeout (seconds)",
+	Default = 8,
+	Min = 5,
+	Max = 30,
+	Rounding = 0,
+	Tooltip = "Max time to wait on reward screen before force returning to lobby"
+})
+Options.RetryTimeoutSlider:OnChanged(function()
+	MAX_REWARD_WAIT = Options.RetryTimeoutSlider.Value
+end)
 
 MainGroup:AddToggle("SoloOnlyToggle", {
 	Text = "Solo Only",
@@ -2183,9 +2177,9 @@ Toggles.AutoBoostToggle:OnChanged(function()
 	if not getgenv().AutoBoost then return end
 	task.spawn(function()
 		local boostItems = {
-			Gold = {"2x Gold Boost [2h]", "2x Gold Boost [1h]", "2x Gold Boost [30m]", "2x Gold Boost [15m]"},
-	Luck = {"2x Luck Boost [2h]", "2x Luck Boost [1h]", "2x Luck Boost [30m]", "2x Luck Boost [15m]"},
-	XP   = {"2x XP Boost [2h]",  "2x XP Boost [1h]", "2x XP Boost [30m]", "2x XP Boost [15m]"},
+			Gold = {"2x Gold Boost [30m]", "2x Gold Boost [15m]"},
+			Luck = {"2x Luck Boost [30m]", "2x Luck Boost [15m]"},
+			XP   = {"2x XP Boost [30m]",  "2x XP Boost [15m]"},
 		}
 		local function useBoost(boostType)
 			for _, itemName in ipairs(boostItems[boostType]) do
@@ -2566,52 +2560,45 @@ UpgradesGroup:AddToggle("AutoUpgradeToggle", {
 Toggles.AutoUpgradeToggle:OnChanged(function()
 	getgenv().AutoUpgrade = Toggles.AutoUpgradeToggle.Value
 	if not getgenv().AutoUpgrade then return end
+	if game.PlaceId ~= 14916516914 then
+		Library:Notify({ Title = "Auto Upgrade", Description = "Works in Lobby!", Time = 4 })
+		getgenv().AutoUpgrade = false
+		Toggles.AutoUpgradeToggle:SetValue(false)
+		return
+	end
 	task.spawn(function()
-		if game.PlaceId ~= 14916516914 then
-			Library:Notify({ Title = "Auto Upgrade", Description = "Works in lobby!", Time = 3 })
-			getgenv().AutoUpgrade = false
-			Toggles.AutoUpgradeToggle:SetValue(false)
-			return
-		end
-
-		local slot = lp:GetAttribute("Slot")
-		if not slot then
-			getRemote:InvokeServer("Functions", "Select", "A")
-			local waited = 0
-			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
-			slot = lp:GetAttribute("Slot")
-		end
-
-		if not slot then
-			Library:Notify({ Title = "Auto Upgrade", Description = "Slot not selected!", Time = 3 })
-			getgenv().AutoUpgrade = false
-			Toggles.AutoUpgradeToggle:SetValue(false)
-			return
-		end
-
-		Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " upgrading...", Time = 2 })
-
-		local allUpgrades = {
-			"Crit_Damage", "Crit_Chance",
-			"ODM_Damage", "ODM_Control", "ODM_Gas", "ODM_Speed", "Blade_Durability", "ODM_Range",
-			"Blast_Radius", "TS_Control", "TS_Range", "TS_Damage", "TS_Gas", "TS_Speed",
-		}
-
 		while getgenv().AutoUpgrade do
+			if game.PlaceId ~= 14916516914 then
+				getgenv().AutoUpgrade = false
+				Toggles.AutoUpgradeToggle:SetValue(false)
+				break
+			end
+			local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
+			if not ok or not liveData or type(liveData) ~= "table" then task.wait(2) continue end
+
+			local slotIndex = liveData.Current_Slot
+			local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
+			if not slotData then task.wait(2) continue end
+
+			local weapon = slotData.Weapon
+			local upgrades = slotData.Upgrades and slotData.Upgrades[weapon]
+			if not upgrades then task.wait(2) continue end
+
 			local anyDone = false
-			for _, upg in ipairs(allUpgrades) do
-				if not getgenv().AutoUpgrade then break end
-				local ok, result = pcall(function()
-					return getRemote:InvokeServer("S_Equipment", "Upgrade", {upg})
+			for upg, lvl in next, upgrades do
+				if lvl >= 15 then continue end
+				local success, result = pcall(function()
+					return getRemote:InvokeServer("S_Equipment", "Upgrade", upg)
 				end)
-				if ok and result ~= nil and result ~= false then
+				if success and result then
 					anyDone = true
-					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " "), Time = 1.5 })
+					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " ") .. " Lv " .. tostring(lvl + 1), Time = 1.5 })
 					task.wait(0.5)
 				end
 			end
+
 			if not anyDone then
-				Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " fully maxed!", Time = 3 })
+				Library:Notify({ Title = "Auto Upgrade", Description = weapon .. " fully maxed on slot " .. tostring(slotIndex), Time = 3 })
 				getgenv().AutoUpgrade = false
 				Toggles.AutoUpgradeToggle:SetValue(false)
 				break
@@ -2750,63 +2737,53 @@ Toggles.AutoSkillTree:OnChanged(function()
 	if game.PlaceId ~= 14916516914 then return end
 
 	task.spawn(function()
-		local slot = lp:GetAttribute("Slot")
-		if not slot then
-			getRemote:InvokeServer("Functions", "Select", "A")
-			local waited = 0
-			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
-			slot = lp:GetAttribute("Slot")
-		end
-
-		if not slot then
-			Library:Notify({ Title = "Skill Tree", Description = "Slot not Selected!", Time = 3 })
-			getgenv().AutoSkillTree = false
-			Toggles.AutoSkillTree:SetValue(false)
-			return
-		end
-
-		local weapon = Options.MiddlePathDropdown.Value == "Damage" and "Blades" or "Blades"
-
-		local middle = Options.MiddlePathDropdown.Value
-		local left   = Options.LeftPathDropdown.Value
-		local right  = Options.RightPathDropdown.Value
-
-		local middlePath = SkillPaths[weapon] and SkillPaths[weapon][middle]
-		local leftPath   = SkillPaths.Support[left]
-		local rightPath  = SkillPaths.Defense[right]
-
-		local p1 = Options.Priority1Dropdown.Value or "Middle"
-		local p2 = Options.Priority2Dropdown.Value or "Left"
-		local p3 = Options.Priority3Dropdown.Value or "None"
-
-		local pathMap = { Left = leftPath, Middle = middlePath, Right = rightPath }
-		local paths, used = {}, {}
-		local function addPath(p)
-			if not used[p] and pathMap[p] then
-				table.insert(paths, pathMap[p])
-				used[p] = true
-			end
-		end
-		addPath(p1); addPath(p2); addPath(p3)
-
 		while getgenv().AutoSkillTree do
+			local ok, liveData = pcall(function() return getRemote:InvokeServer("Data", "Copy") end)
+			if not ok or not liveData or type(liveData) ~= "table" then task.wait(2) continue end
+
+			local slotIndex = liveData.Current_Slot
+			local slotData = slotIndex and liveData.Slots and liveData.Slots[slotIndex]
+			if not slotData then task.wait(2) continue end
+
+			local weapon = slotData.Weapon
+			local middle = Options.MiddlePathDropdown.Value
+			local left   = Options.LeftPathDropdown.Value
+			local right  = Options.RightPathDropdown.Value
+
+			local middlePath = SkillPaths[weapon] and SkillPaths[weapon][middle]
+			local leftPath   = SkillPaths.Support[left]
+			local rightPath  = SkillPaths.Defense[right]
+
+			local p1 = Options.Priority1Dropdown.Value or "Middle"
+			local p2 = Options.Priority2Dropdown.Value or "Left"
+			local p3 = Options.Priority3Dropdown.Value or "None"
+
+			local pathMap = { Left = leftPath, Middle = middlePath, Right = rightPath }
+			local paths, used = {}, {}
+
+			local function addPath(p)
+				if not used[p] and pathMap[p] then
+					table.insert(paths, pathMap[p])
+					used[p] = true
+				end
+			end
+			addPath(p1) addPath(p2) addPath(p3)
+
 			local anyUnlocked = false
 			for _, path in ipairs(paths) do
 				for _, skillId in ipairs(path) do
-					if not getgenv().AutoSkillTree then break end
-					local ok, result = pcall(function()
-						return getRemote:InvokeServer("S_Equipment", "Unlock", {skillId})
-					end)
-					if ok and result ~= nil and result ~= false then
+					if table.find(slotData.Skills.Unlocked, skillId) then continue end
+					local success = getRemote:InvokeServer("S_Equipment", "Unlock", {skillId})
+					if success then
 						anyUnlocked = true
-						Library:Notify({ Title = "Skill Unlocked", Description = "ID: " .. skillId, Time = 1 })
+						Library:Notify({ Title = "Unlocked Skill", Description = "ID: " .. skillId, Time = 1 })
 						task.wait(0.5)
 					end
 				end
 			end
 
 			if not anyUnlocked then
-				Library:Notify({ Title = "Skill Tree", Description = "All selected paths complete!", Time = 3 })
+				Library:Notify({ Title = "Skill Tree", Description = "All selected paths complete.", Time = 3 })
 				getgenv().AutoSkillTree = false
 				Toggles.AutoSkillTree:SetValue(false)
 				break
@@ -2815,6 +2792,7 @@ Toggles.AutoSkillTree:OnChanged(function()
 		end
 	end)
 end)
+
 SkillTreeGroup:AddDropdown("MiddlePathDropdown", {
 	Values = {"Damage", "Critical"},
 	Default = 2,
@@ -3196,8 +3174,7 @@ task.spawn(function()
 end)
 
 
-
-	-- logs
+-- logs
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -3232,5 +3209,63 @@ local function sendLog()
 end
 
 
-
 sendLog()
+
+-- ==========================================
+-- REWARD GUI STUCK DETECTION
+-- ==========================================
+
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		
+		-- Skip if toggle is OFF
+		if not getgenv().AutoRetryTimeout then continue end
+		
+		if not rewards then continue end
+		
+		-- If reward screen is visible and timer started
+		if rewards.Visible and rewardGuiStartTime then
+			local timeOnScreen = os.clock() - rewardGuiStartTime
+			
+			-- Timeout exceeded, fix the bug
+			if timeOnScreen > MAX_REWARD_WAIT then
+				Library:Notify({
+					Title = "Auto Retry Bug Detected!",
+					Description = "Reward stuck for " .. math.floor(timeOnScreen) .. "s. Returning to lobby...",
+					Time = 5
+				})
+				
+				-- Save current stats
+				SaveSessionStats()
+				
+				-- Stop farming
+				if AutoFarm._running then
+					AutoFarm:Stop()
+				end
+				
+				-- Return to lobby via remote
+				task.spawn(function()
+					pcall(function() 
+						getRemote:InvokeServer("Functions", "Teleport", "Lobby") 
+					end)
+				end)
+				
+				task.wait(1)
+				
+				-- Force teleport if still in game
+				if game.PlaceId ~= 14916516914 then
+					pcall(function() 
+						TeleportService:Teleport(14916516914, Players.LocalPlayer) 
+					end)
+				end
+				
+				-- Reset timer
+				rewardGuiStartTime = nil
+			end
+		else
+			-- Reward screen closed, reset timer
+			rewardGuiStartTime = nil
+		end
+	end
+end)
