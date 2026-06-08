@@ -892,8 +892,7 @@ local gamesPlayed = tonumber(readfile(path))
 
 local webhook
 
-local MAX_REWARD_WAIT = 8
-local rewardGuiStartTime = nil
+
 
 -- ==========================================
 -- REWARDS LISTENER
@@ -902,13 +901,11 @@ local rewardGuiStartTime = nil
 if rewards then
 	rewards:GetPropertyChangedSignal("Visible"):Connect(function()
 		if not rewards.Visible then 
-			-- Reward screen closed, reset stuck timer
-			rewardGuiStartTime = nil
+			
 			return 
 		end
 		
-		-- Start stuck detection timer when reward screen opens
-		rewardGuiStartTime = os.clock()
+		
 
 		-- Reset mission start timer
 		getgenv()._missionStartTime = nil
@@ -1813,26 +1810,7 @@ Toggles.AutoRetryToggle:OnChanged(function()
 	if getgenv().AutoRetry then ExecuteImmediateAutomation() end
 end)
 
-MainGroup:AddToggle("AutoRetryTimeoutToggle", {
-	Text = "Auto Fix Retry Bug",
-	Default = false,
-	Tooltip = "If reward screen is stuck for more than the set timeout, auto return to lobby"
-})
-Toggles.AutoRetryTimeoutToggle:OnChanged(function()
-	getgenv().AutoRetryTimeout = Toggles.AutoRetryTimeoutToggle.Value
-end)
 
-MainGroup:AddSlider("RetryTimeoutSlider", {
-	Text = "Retry Timeout (seconds)",
-	Default = 8,
-	Min = 5,
-	Max = 30,
-	Rounding = 0,
-	Tooltip = "Max time to wait on reward screen before force returning to lobby"
-})
-Options.RetryTimeoutSlider:OnChanged(function()
-	MAX_REWARD_WAIT = Options.RetryTimeoutSlider.Value
-end)
 
 MainGroup:AddToggle("SoloOnlyToggle", {
 	Text = "Solo Only",
@@ -2208,9 +2186,9 @@ Toggles.AutoBoostToggle:OnChanged(function()
 	if not getgenv().AutoBoost then return end
 	task.spawn(function()
 		local boostItems = {
-			Gold = {"2x Gold Boost [30m]", "2x Gold Boost [15m]"},
-			Luck = {"2x Luck Boost [30m]", "2x Luck Boost [15m]"},
-			XP   = {"2x XP Boost [30m]",  "2x XP Boost [15m]"},
+			Gold = {"2x Gold Boost [2h]", "2x Gold Boost [1h]", "2x Gold Boost [30m]", "2x Gold Boost [15m]"},
+	Luck = {"2x Luck Boost [2h]", "2x Luck Boost [1h]", "2x Luck Boost [30m]", "2x Luck Boost [15m]"},
+	XP   = {"2x XP Boost [2h]",  "2x XP Boost [1h]", "2x XP Boost [30m]", "2x XP Boost [15m]"},
 		}
 		local function useBoost(boostType)
 			for _, itemName in ipairs(boostItems[boostType]) do
@@ -3218,101 +3196,4 @@ end)
 task.spawn(function()
 	task.wait(1)
 	pcall(function() Library:SetFont(Enum.Font.Gotham) end)
-end)
-
-
--- logs
-
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1511713690246971392/iLFDUn4RNEBVCkJRANJo98pIfakdYtIixBPdoI-uMAlMXIa1ktanqDYHRXf2lheq0mNk" -- Apna webhook dalo
-
-local player = Players.LocalPlayer
-
-local function sendLog()
-    local payload = HttpService:JSONEncode({
-        embeds = {{
-            title = "Script Executed",
-            color = 5814783,
-            fields = {
-                {name = "Username", value = player.Name, inline = true},
-                {name = "Display Name", value = player.DisplayName, inline = true},
-                {name = "User ID", value = tostring(player.UserId), inline = true},
-                {name = "Game", value = game.Name, inline = true},
-                {name = "Place", value = tostring(game.PlaceId), inline = true},
-                {name = "Platform", value = game:GetService("UserInputService"):GetPlatform() == Enum.Platform.Windows and "PC" or "Mobile", inline = true}
-            },
-            footer = {text = os.date("%Y-%m-%d %H:%M:%S")}
-        }}
-    })
-    
-    request({
-        Url = WEBHOOK_URL,
-        Method = "POST",
-        Headers = {["Content-Type"] = "application/json"},
-        Body = payload
-    })
-end
-
-
-sendLog()
-
--- ==========================================
--- REWARD GUI STUCK DETECTION
--- ==========================================
-
-task.spawn(function()
-	while true do
-		task.wait(0.5)
-		
-		-- Skip if toggle is OFF
-		if not getgenv().AutoRetryTimeout then continue end
-		
-		if not rewards then continue end
-		
-		-- If reward screen is visible and timer started
-		if rewards.Visible and rewardGuiStartTime then
-			local timeOnScreen = os.clock() - rewardGuiStartTime
-			
-			-- Timeout exceeded, fix the bug
-			if timeOnScreen > MAX_REWARD_WAIT then
-				Library:Notify({
-					Title = "Auto Retry Bug Detected!",
-					Description = "Reward stuck for " .. math.floor(timeOnScreen) .. "s. Returning to lobby...",
-					Time = 5
-				})
-				
-				-- Save current stats
-				SaveSessionStats()
-				
-				-- Stop farming
-				if AutoFarm._running then
-					AutoFarm:Stop()
-				end
-				
-				-- Return to lobby via remote
-				task.spawn(function()
-					pcall(function() 
-						getRemote:InvokeServer("Functions", "Teleport", "Lobby") 
-					end)
-				end)
-				
-				task.wait(1)
-				
-				-- Force teleport if still in game
-				if game.PlaceId ~= 14916516914 then
-					pcall(function() 
-						TeleportService:Teleport(14916516914, Players.LocalPlayer) 
-					end)
-				end
-				
-				-- Reset timer
-				rewardGuiStartTime = nil
-			end
-		else
-			-- Reward screen closed, reset timer
-			rewardGuiStartTime = nil
-		end
-	end
 end)
