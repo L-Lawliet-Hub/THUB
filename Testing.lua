@@ -2844,7 +2844,7 @@ Toggles.AutoUpgradeToggle:OnChanged(function()
 				end
 			end
 			if not anyDone then
-				Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " fully maxed!", Time = 3 })
+				Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " fully maxed or dont have enough coins!", Time = 3 })
 				getgenv().AutoUpgrade = false
 				Toggles.AutoUpgradeToggle:SetValue(false)
 				break
@@ -3034,7 +3034,7 @@ Toggles.AutoSkillTree:OnChanged(function()
 		end
 
 		if not slot then
-			Library:Notify({ Title = "Skill Tree", Description = "Slot not Selected!", Time = 3 })
+			Library:Notify({ Title = "Skill Tree", Description = "Slot select nahi hua!", Time = 3 })
 			getgenv().AutoSkillTree = false
 			Toggles.AutoSkillTree:SetValue(false)
 			return
@@ -3090,7 +3090,6 @@ Toggles.AutoSkillTree:OnChanged(function()
 		end
 	end)
 end)
-
 SkillTreeGroup:AddDropdown("MiddlePathDropdown", {
 	Values = {"Damage", "Critical"},
 	Default = 2,
