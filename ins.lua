@@ -1385,16 +1385,67 @@ if getgenv().AutoChest then
     end
 end
 
-	-- Auto Retry (PURE REMOTE - No Button)
-	if getgenv().AutoRetry then
-		local rewardsGui = INTERFACE:FindFirstChild("Rewards")
-		if rewardsGui and rewardsGui.Visible then
-			task.wait(1)
-			pcall(function()
-				getRemote:InvokeServer("Functions", "Retry", "Add")
-			end)
-		end
-	end
+if getgenv().AutoRetry then
+        local rewardsGui = INTERFACE:FindFirstChild("Rewards")
+        if rewardsGui and rewardsGui.Visible then
+            -- Method 1: Direct button path
+            local retryBtn = rewardsGui:FindFirstChild("Main")
+                and rewardsGui.Main:FindFirstChild("Info")
+                and rewardsGui.Main.Info:FindFirstChild("Main")
+                and rewardsGui.Main.Info.Main:FindFirstChild("Buttons")
+                and rewardsGui.Main.Info.Main.Buttons:FindFirstChild("Retry")
+            
+            -- Method 2: Search all descendants for "Retry" button
+            if not retryBtn or not retryBtn.Visible then
+                for _, btn in ipairs(rewardsGui:GetDescendants()) do
+                    if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible and btn.Active then
+                        if btn.Name == "Retry" or (btn:IsA("TextButton") and btn.Text:find("Retry")) then
+                            retryBtn = btn
+                            break
+                        end
+                    end
+                end
+            end
+            
+            -- Method 3: Click via VirtualInputManager directly
+            if retryBtn and retryBtn.Visible and retryBtn.Active then
+                -- Wait a bit for UI to fully load
+                task.wait(0.5)
+                
+                -- Try multiple click methods
+                local clicked = false
+                
+                -- Try 1: UseButton function
+                clicked = UseButton(retryBtn)
+                
+                -- Try 2: Direct VIM click
+                if not clicked then
+                    GuiService.SelectedObject = retryBtn
+                    task.wait(0.1)
+                    vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                    vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                    clicked = true
+                end
+                
+                -- Try 3: Mouse click simulation
+                if not clicked then
+                    local pos = retryBtn.AbsolutePosition + retryBtn.AbsoluteSize / 2
+                    vim:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 0)
+                    task.wait(0.1)
+                    vim:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 0)
+                    clicked = true
+                end
+                
+                if clicked then
+                    print("Retry button clicked!")
+                end
+            else
+                -- Button not found or not active, force refresh
+                print("Retry button not ready, waiting...")
+                task.wait(0.5)
+            end
+        end
+    end
 end
 
 local function roll(targets, rarities)
@@ -2624,6 +2675,7 @@ Toggles.AFKFarmingBreachToggle:OnChanged(function()
         -- Turn OFF other configs
         pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
         pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+		pcall(function() Toggles.AFKFarmingWavesToggle:SetValue(false) end)
         
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
@@ -2690,6 +2742,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         -- Turn OFF other configs
         pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
         pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+		pcall(function() Toggles.AFKFarmingWavesToggle:SetValue(false) end)
         
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
@@ -2709,7 +2762,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
         pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
         pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
-        pcall(function() Options.MultiHitCountSlider:SetValue(2) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(3) end)
         
         -- Security
         pcall(function() Options.FarmOptionsDropdown:SetValue({
@@ -2760,6 +2813,7 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
         -- Turn OFF other configs
         pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
         pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
+		pcall(function() Toggles.AFKFarmingWavesToggle:SetValue(false) end)
         
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
@@ -2840,7 +2894,7 @@ Toggles.AFKFarmingWavesToggle:OnChanged(function()
         pcall(function() Options.MovementModeDropdown:SetValue("Hover") end)
         pcall(function() Options.FloatHeightSlider:SetValue(250) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
-        pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
+        pcall(function() Toggles.AutoBoostToggle:SetValue(false) end) -- Auto boost
         
         -- Combat
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
@@ -2895,65 +2949,67 @@ ConfigsGroup:AddLabel("• All: Hardest + 10 Mods + Solo")
 -- ==========================================
 
 UpgradesGroup:AddToggle("AutoUpgradeToggle", {
-	Text = "Upgrade Gear",
-	Default = false,
+    Text = "Upgrade Gear",
+    Default = false,
 })
 Toggles.AutoUpgradeToggle:OnChanged(function()
-	getgenv().AutoUpgrade = Toggles.AutoUpgradeToggle.Value
-	if not getgenv().AutoUpgrade then return end
-	task.spawn(function()
-		if game.PlaceId ~= 14916516914 then
-			Library:Notify({ Title = "Auto Upgrade", Description = "Works in lobby!", Time = 3 })
-			getgenv().AutoUpgrade = false
-			Toggles.AutoUpgradeToggle:SetValue(false)
-			return
-		end
+    getgenv().AutoUpgrade = Toggles.AutoUpgradeToggle.Value
+    if not getgenv().AutoUpgrade then return end
+    task.spawn(function()
+        if game.PlaceId ~= 14916516914 then
+            Library:Notify({ Title = "Auto Upgrade", Description = "Works in lobby!", Time = 3 })
+            getgenv().AutoUpgrade = false
+            Toggles.AutoUpgradeToggle:SetValue(false)
+            return
+        end
 
-		local slot = lp:GetAttribute("Slot")
-		if not slot then
-			getRemote:InvokeServer("Functions", "Select", "A")
-			local waited = 0
-			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
-			slot = lp:GetAttribute("Slot")
-		end
+        local slot = lp:GetAttribute("Slot")
+        if not slot then
+            getRemote:InvokeServer("Functions", "Select", "A")
+            local waited = 0
+            repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
+            slot = lp:GetAttribute("Slot")
+        end
 
-		if not slot then
-			Library:Notify({ Title = "Auto Upgrade", Description = "Slot not selected!", Time = 3 })
-			getgenv().AutoUpgrade = false
-			Toggles.AutoUpgradeToggle:SetValue(false)
-			return
-		end
+        if not slot then
+            Library:Notify({ Title = "Auto Upgrade", Description = "Slot not selected!", Time = 3 })
+            getgenv().AutoUpgrade = false
+            Toggles.AutoUpgradeToggle:SetValue(false)
+            return
+        end
 
-		Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " upgrading...", Time = 2 })
+        Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " upgrading...", Time = 2 })
 
-		local allUpgrades = {
-			"Crit_Damage", "Crit_Chance",
-			"ODM_Damage", "ODM_Control", "ODM_Gas", "ODM_Speed", "Blade_Durability", "ODM_Range",
-			"Blast_Radius", "TS_Control", "TS_Range", "TS_Damage", "TS_Gas", "TS_Speed",
-		}
+        local allUpgrades = {
+            "Crit_Damage", "Crit_Chance",
+            "ODM_Damage", "ODM_Control", "ODM_Gas", "ODM_Speed", "Blade_Durability", "ODM_Range",
+            "Blast_Radius", "TS_Control", "TS_Range", "TS_Damage", "TS_Gas", "TS_Speed",
+        }
 
-		while getgenv().AutoUpgrade do
-			local anyDone = false
-			for _, upg in ipairs(allUpgrades) do
-				if not getgenv().AutoUpgrade then break end
-				local ok, result = pcall(function()
-					return getRemote:InvokeServer("S_Equipment", "Upgrade", {upg})
-				end)
-				if ok and result ~= nil and result ~= false then
-					anyDone = true
-					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " "), Time = 1.5 })
-					task.wait(0.5)
-				end
-			end
-			if not anyDone then
-				Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " fully maxed!", Time = 3 })
-				getgenv().AutoUpgrade = false
-				Toggles.AutoUpgradeToggle:SetValue(false)
-				break
-			end
-			task.wait(1)
-		end
-	end)
+        while getgenv().AutoUpgrade do
+            local anyDone = false
+            for _, upg in ipairs(allUpgrades) do
+                if not getgenv().AutoUpgrade then break end
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Equipment", "Upgrade", {upg})
+                end)
+                if ok and result ~= nil and result ~= false then
+                    anyDone = true
+                    Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " "), Time = 1.5 })
+                    task.wait(0.5)
+                end
+            end
+            if not anyDone then
+                Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " fully maxed! Still checking...", Time = 3 })
+                -- ❌ getgenv().AutoUpgrade = false -- REMOVED
+                -- ❌ Toggles.AutoUpgradeToggle:SetValue(false) -- REMOVED
+                -- ❌ break -- REMOVED
+                task.wait(10) -- Check every 10s if all maxed
+            else
+                task.wait(1)
+            end
+        end
+    end)
 end)
 
 UpgradesGroup:AddToggle("AutoEnhanceToggle", {
