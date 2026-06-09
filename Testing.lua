@@ -2675,6 +2675,7 @@ Toggles.AFKFarmingBreachToggle:OnChanged(function()
         -- Turn OFF other configs
         pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
         pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+		pcall(function() Toggles.AFKFarmingWavesToggle:SetValue(false) end)
         
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
@@ -2741,6 +2742,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         -- Turn OFF other configs
         pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
         pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+		pcall(function() Toggles.AFKFarmingWavesToggle:SetValue(false) end)
         
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
@@ -2760,7 +2762,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
         pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
         pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
-        pcall(function() Options.MultiHitCountSlider:SetValue(2) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(3) end)
         
         -- Security
         pcall(function() Options.FarmOptionsDropdown:SetValue({
@@ -2811,6 +2813,7 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
         -- Turn OFF other configs
         pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
         pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
+		pcall(function() Toggles.AFKFarmingWavesToggle:SetValue(false) end)
         
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
@@ -2891,7 +2894,7 @@ Toggles.AFKFarmingWavesToggle:OnChanged(function()
         pcall(function() Options.MovementModeDropdown:SetValue("Hover") end)
         pcall(function() Options.FloatHeightSlider:SetValue(250) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
-        pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
+        pcall(function() Toggles.AutoBoostToggle:SetValue(false) end) -- Auto boost
         
         -- Combat
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
