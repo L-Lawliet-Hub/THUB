@@ -78,11 +78,11 @@ local familyRaritiesOptions = {
 }
 
 -- Config system for persistent dropdown state
-if not isfolder("./THUB1") then makefolder("./THUB1") end
-if not isfolder("./THUB1/aotr") then makefolder("./THUB1/aotr") end
+if not isfolder("./FREE") then makefolder("./FREE") end
+if not isfolder("./FREE/aotr") then makefolder("./FREE/aotr") end
 
-local ConfigFile = "./THUB1/aotr/dropdown_config.json"
-local returnCounterPath = "./THUB1/aotr/return_lobby_counter.txt"
+local ConfigFile = "./FREE/aotr/dropdown_config.json"
+local returnCounterPath = "./FREE/aotr/return_lobby_counter.txt"
 local HttpService = game:GetService("HttpService")
 
 local function LoadConfig()
@@ -819,7 +819,7 @@ local data = {
 	Special = {}
 }
 
-local path = "./THUB1/aotr/games_played.txt"
+local path = "./FREE/aotr/games_played.txt"
 if not isfile(path) then writefile(path, "0") end
 local gamesPlayed = tonumber(readfile(path))
 
@@ -833,7 +833,7 @@ if rewards then
 		getgenv()._missionStartTime = nil
 
 	gamesPlayed = gamesPlayed + 1
-		writefile("./THUB1/aotr/games_played.txt", tostring(gamesPlayed))
+		writefile("./FREE/aotr/games_played.txt", tostring(gamesPlayed))
 
 		local gamesUntilReturn = tonumber(readfile(returnCounterPath)) or 0
 		local willReturn = false
@@ -3002,8 +3002,8 @@ Library.ToggleKeybind = Options.MenuKeybind
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
 
-ThemeManager:SetFolder("THUB1/aotr")
-SaveManager:SetFolder("THUB1/aotr")
+ThemeManager:SetFolder("FREE/aotr")
+SaveManager:SetFolder("FREE/aotr")
 
 -- Titanic Hub colour scheme + Gotham font
 ThemeManager:SetDefaultTheme({
