@@ -1949,15 +1949,13 @@ Toggles.AutoHooksToggle:OnChanged(function()
             while getgenv().AutoHooks do
                 -- Press Q
                 vim:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
-                task.wait(0.1)
-                vim:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
                 
-                task.wait(0.05)
+                
+                task.wait(0.1)
                 
                 -- Press E
                 vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                task.wait(0.1)
-                vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                
                 
                 -- Wait 3 seconds before next hooks
                 task.wait(3)
