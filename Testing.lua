@@ -3387,6 +3387,48 @@ Toggles.AutoWavesUpgradeToggle:OnChanged(function()
     end
 end)
 
+-- ==========================================
+-- AUTO START/VOTE WAVES
+-- ==========================================
+
+getgenv().AutoStartWaves = false
+
+WavesSettingsGroup:AddToggle("AutoStartWavesToggle", {
+    Text = "Auto Start/Vote Waves",
+    Default = false,
+    Tooltip = "Auto vote and start waves mode when available"
+})
+Toggles.AutoStartWavesToggle:OnChanged(function()
+    getgenv().AutoStartWaves = Toggles.AutoStartWavesToggle.Value
+    
+    if getgenv().AutoStartWaves then
+        task.spawn(function()
+            while getgenv().AutoStartWaves do
+                pcall(function()
+                    -- Check if waves vote/start UI is visible
+                    local wavesFrame = INTERFACE:FindFirstChild("Waves") or 
+                                      INTERFACE:FindFirstChild("WaveVote") or
+                                      INTERFACE:FindFirstChild("Vote")
+                    
+                    if wavesFrame and wavesFrame.Visible then
+                        -- Try to click vote/start button
+                        local startBtn = wavesFrame:FindFirstChild("Start") or
+                                        wavesFrame:FindFirstChild("Vote") or
+                                        wavesFrame:FindFirstChild("Interact")
+                        
+                        if startBtn then
+                            UseButton(startBtn)
+                        end
+                    end
+                    
+                    -- Send remote to vote/update waves
+                    postRemote:FireServer("Waves", "Update")
+                end)
+                task.wait(5) -- Check every 5 seconds
+            end
+        end)
+    end
+end)
 
 WavesFarmGroup:AddLabel("More Features Coming Soon")
 WavesSettingsGroup:AddLabel("More Features Coming Soon")
