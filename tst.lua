@@ -2028,6 +2028,18 @@ Options.MultiHitCountSlider:OnChanged(function()
 	getgenv().MultiHitCount = Options.MultiHitCountSlider.Value
 end)
 
+CombatGroup:AddSlider("AttackRangeSlider", {
+    Text = "Attack Range",
+    Default = 150,
+    Min = 100,
+    Max = 1500,
+    Rounding = 0,
+    Tooltip = "Maximum distance to attack titans from"
+})
+Options.AttackRangeSlider:OnChanged(function()
+    getgenv().AutoFarmConfig.AttackRange = Options.AttackRangeSlider.Value
+end)
+
 -- ==========================================
 -- UTILITY TAB : Security
 -- ==========================================
@@ -2675,6 +2687,7 @@ Toggles.AFKFarmingBreachToggle:OnChanged(function()
         -- Turn OFF other configs
         pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
         pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+		pcall(function() Toggles.AFKFarmingWavesToggle:SetValue(false) end)
         
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
@@ -2741,6 +2754,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         -- Turn OFF other configs
         pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
         pcall(function() Toggles.AFKFarmingStallToggle:SetValue(false) end)
+		pcall(function() Toggles.AFKFarmingWavesToggle:SetValue(false) end)
         
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
@@ -2760,7 +2774,7 @@ Toggles.AFKFarmingDefendToggle:OnChanged(function()
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
         pcall(function() Toggles.AutoEscapeToggle:SetValue(true) end)
         pcall(function() Toggles.MultiHitToggle:SetValue(true) end)
-        pcall(function() Options.MultiHitCountSlider:SetValue(2) end)
+        pcall(function() Options.MultiHitCountSlider:SetValue(3) end)
         
         -- Security
         pcall(function() Options.FarmOptionsDropdown:SetValue({
@@ -2811,6 +2825,7 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
         -- Turn OFF other configs
         pcall(function() Toggles.AFKFarmingBreachToggle:SetValue(false) end)
         pcall(function() Toggles.AFKFarmingDefendToggle:SetValue(false) end)
+		pcall(function() Toggles.AFKFarmingWavesToggle:SetValue(false) end)
         
         -- Farm Settings
         pcall(function() Toggles.AutoKillToggle:SetValue(true) end)
@@ -2891,7 +2906,7 @@ Toggles.AFKFarmingWavesToggle:OnChanged(function()
         pcall(function() Options.MovementModeDropdown:SetValue("Hover") end)
         pcall(function() Options.FloatHeightSlider:SetValue(250) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
-        pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
+        pcall(function() Toggles.AutoBoostToggle:SetValue(false) end) -- Auto boost
         
         -- Combat
         pcall(function() Toggles.AutoReloadToggle:SetValue(true) end)
@@ -2946,65 +2961,67 @@ ConfigsGroup:AddLabel("• All: Hardest + 10 Mods + Solo")
 -- ==========================================
 
 UpgradesGroup:AddToggle("AutoUpgradeToggle", {
-	Text = "Upgrade Gear",
-	Default = false,
+    Text = "Upgrade Gear",
+    Default = false,
 })
 Toggles.AutoUpgradeToggle:OnChanged(function()
-	getgenv().AutoUpgrade = Toggles.AutoUpgradeToggle.Value
-	if not getgenv().AutoUpgrade then return end
-	task.spawn(function()
-		if game.PlaceId ~= 14916516914 then
-			Library:Notify({ Title = "Auto Upgrade", Description = "Works in lobby!", Time = 3 })
-			getgenv().AutoUpgrade = false
-			Toggles.AutoUpgradeToggle:SetValue(false)
-			return
-		end
+    getgenv().AutoUpgrade = Toggles.AutoUpgradeToggle.Value
+    if not getgenv().AutoUpgrade then return end
+    task.spawn(function()
+        if game.PlaceId ~= 14916516914 then
+            Library:Notify({ Title = "Auto Upgrade", Description = "Works in lobby!", Time = 3 })
+            getgenv().AutoUpgrade = false
+            Toggles.AutoUpgradeToggle:SetValue(false)
+            return
+        end
 
-		local slot = lp:GetAttribute("Slot")
-		if not slot then
-			getRemote:InvokeServer("Functions", "Select", "A")
-			local waited = 0
-			repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
-			slot = lp:GetAttribute("Slot")
-		end
+        local slot = lp:GetAttribute("Slot")
+        if not slot then
+            getRemote:InvokeServer("Functions", "Select", "A")
+            local waited = 0
+            repeat task.wait(0.5); waited += 0.5 until lp:GetAttribute("Slot") or waited >= 5
+            slot = lp:GetAttribute("Slot")
+        end
 
-		if not slot then
-			Library:Notify({ Title = "Auto Upgrade", Description = "Slot not selected!", Time = 3 })
-			getgenv().AutoUpgrade = false
-			Toggles.AutoUpgradeToggle:SetValue(false)
-			return
-		end
+        if not slot then
+            Library:Notify({ Title = "Auto Upgrade", Description = "Slot not selected!", Time = 3 })
+            getgenv().AutoUpgrade = false
+            Toggles.AutoUpgradeToggle:SetValue(false)
+            return
+        end
 
-		Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " upgrading...", Time = 2 })
+        Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " upgrading...", Time = 2 })
 
-		local allUpgrades = {
-			"Crit_Damage", "Crit_Chance",
-			"ODM_Damage", "ODM_Control", "ODM_Gas", "ODM_Speed", "Blade_Durability", "ODM_Range",
-			"Blast_Radius", "TS_Control", "TS_Range", "TS_Damage", "TS_Gas", "TS_Speed",
-		}
+        local allUpgrades = {
+            "Crit_Damage", "Crit_Chance",
+            "ODM_Damage", "ODM_Control", "ODM_Gas", "ODM_Speed", "Blade_Durability", "ODM_Range",
+            "Blast_Radius", "TS_Control", "TS_Range", "TS_Damage", "TS_Gas", "TS_Speed",
+        }
 
-		while getgenv().AutoUpgrade do
-			local anyDone = false
-			for _, upg in ipairs(allUpgrades) do
-				if not getgenv().AutoUpgrade then break end
-				local ok, result = pcall(function()
-					return getRemote:InvokeServer("S_Equipment", "Upgrade", {upg})
-				end)
-				if ok and result ~= nil and result ~= false then
-					anyDone = true
-					Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " "), Time = 1.5 })
-					task.wait(0.5)
-				end
-			end
-			if not anyDone then
-				Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " fully maxed!", Time = 3 })
-				getgenv().AutoUpgrade = false
-				Toggles.AutoUpgradeToggle:SetValue(false)
-				break
-			end
-			task.wait(1)
-		end
-	end)
+        while getgenv().AutoUpgrade do
+            local anyDone = false
+            for _, upg in ipairs(allUpgrades) do
+                if not getgenv().AutoUpgrade then break end
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Equipment", "Upgrade", {upg})
+                end)
+                if ok and result ~= nil and result ~= false then
+                    anyDone = true
+                    Library:Notify({ Title = "Upgraded!", Description = string.gsub(upg, "_", " "), Time = 1.5 })
+                    task.wait(0.5)
+                end
+            end
+            if not anyDone then
+                Library:Notify({ Title = "Auto Upgrade", Description = "Slot " .. slot .. " fully maxed! Still checking...", Time = 3 })
+                -- ❌ getgenv().AutoUpgrade = false -- REMOVED
+                -- ❌ Toggles.AutoUpgradeToggle:SetValue(false) -- REMOVED
+                -- ❌ break -- REMOVED
+                task.wait(10) -- Check every 10s if all maxed
+            else
+                task.wait(1)
+            end
+        end
+    end)
 end)
 
 UpgradesGroup:AddToggle("AutoEnhanceToggle", {
