@@ -3440,223 +3440,312 @@ WavesFarmGroup:AddLabel("More Features Coming Soon")
 WavesSettingsGroup:AddLabel("More Features Coming Soon")
 
 
+-- ==========================================
+-- TS QUEST TAB : Auto Watch Tower
+-- ==========================================
+-- Yeh block existing script mein
+-- TSQuestGroup aur TSInfoGroup ke baad add karo
+-- ==========================================
+
+local autoWatchTowerRunning = false
+local watchTowerAnchorConn  = nil
+
+-- Anchor connection band karna
+local function stopWatchTowerAnchor()
+	if watchTowerAnchorConn then
+		watchTowerAnchorConn:Disconnect()
+		watchTowerAnchorConn = nil
+	end
+end
+
+-- Player ko tower ke ground pe rok ke rakhna (AutoFarm ki movement override karta hai)
+local function startWatchTowerAnchor(anchorPos)
+	stopWatchTowerAnchor()
+	watchTowerAnchorConn = RunService.Heartbeat:Connect(function()
+		if not autoWatchTowerRunning then
+			stopWatchTowerAnchor()
+			return
+		end
+		local char = lp.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		if root then
+			root.CFrame = CFrame.new(anchorPos)
+			root.AssemblyLinearVelocity = V3_ZERO
+		end
+	end)
+end
+
+-- WatchTower_N model dhundna (workspace + Unclimbable dono mein)
+local function getTowerModel(num)
+	local name = "WatchTower_" .. num
+	return workspace:FindFirstChild(name)
+		or (workspace:FindFirstChild("Unclimbable")
+			and workspace.Unclimbable:FindFirstChild(name, true))
+		or workspace:FindFirstChild(name, true)
+end
+
+-- Tower ke ground-level position nikalna (player wahan khada rahega)
+local function getTowerGroundPos(model)
+	if not model then return nil end
+
+	if model:IsA("BasePart") then
+		return Vector3.new(model.Position.X, model.Position.Y + 3, model.Position.Z + 12)
+	end
+
+	if model:IsA("Model") then
+		-- Base / Platform / PrimaryPart try karo
+		local base = model:FindFirstChild("Base")
+			or model:FindFirstChild("Platform")
+			or model:FindFirstChild("Foundation")
+			or model.PrimaryPart
+		if base then
+			return Vector3.new(base.Position.X, base.Position.Y + 3, base.Position.Z + 12)
+		end
+		-- Fallback: BoundingBox
+		local ok, cf = pcall(function() return model:GetBoundingBox() end)
+		if ok then
+			return Vector3.new(cf.Position.X, cf.Position.Y - 8, cf.Position.Z + 12)
+		end
+	end
+
+	return nil
+end
+
+-- Tower complete hua ya nahi check karna
+local function isTowerComplete(model, towerNum)
+	-- Tower workspace se gayab ho gaya = complete
+	if not model or not model.Parent then return true end
+
+	-- Common completion attributes
+	for _, attr in ipairs({"Complete", "Built", "Done", "Finished", "Completed"}) do
+		if model:GetAttribute(attr) == true then return true end
+	end
+
+	-- Progress = 1 ya zyada
+	local prog = model:GetAttribute("Progress")
+	if prog and type(prog) == "number" and prog >= 1 then return true end
+
+	-- ReplicatedStorage Objectives mein tower-related value check
+	local rsObj = game:GetService("ReplicatedStorage"):FindFirstChild("Objectives")
+	if rsObj then
+		for _, obj in ipairs(rsObj:GetChildren()) do
+			local n = string.lower(obj.Name)
+			if string.find(n, "tower") or string.find(n, "watch") or string.find(n, "build") then
+				if obj:IsA("IntValue") or obj:IsA("NumberValue") then
+					local req = obj:GetAttribute("Requirement") or towerNum
+					if obj.Value >= req then return true end
+				end
+			end
+		end
+	end
+
+	return false
+end
 
 -- ==========================================
--- AUTO TS QUEST
+-- UI : TSQuestGroup
 -- ==========================================
 
-getgenv().AutoTSQuest = false
-getgenv().CurrentTower = 1
-
-local function tpToTower(towerNum)
-    local towerName = "WatchTower_" .. towerNum
-    local tower = workspace:FindFirstChild(towerName)
-    
-    if tower then
-        local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-        if root then
-            -- TP to ground near tower
-            local towerPos = tower:GetPivot().Position
-            root.CFrame = CFrame.new(towerPos.X, towerPos.Y + 5, towerPos.Z)
-            return true
-        end
-    end
-    return false
-end
-
-local function isTowerComplete(towerNum)
-    local towerName = "WatchTower_" .. towerNum
-    local tower = workspace:FindFirstChild(towerName)
-    
-    if tower then
-        -- Check if tower has "Complete" or "Built" attribute
-        return tower:GetAttribute("Complete") or tower:GetAttribute("Built")
-    end
-    return false
-end
-
-local function createTower(towerNum)
-    local towerName = "WatchTower_" .. towerNum
-    
-    -- Check if tower already exists
-    local existing = workspace:FindFirstChild(towerName)
-    if existing and isTowerComplete(towerNum) then
-        return true -- Already done
-    end
-    
-    -- TP to tower location
-    if tpToTower(towerNum) then
-        Library:Notify({
-            Title = "🏗️ TS Quest",
-            Description = "Creating " .. towerName .. "...",
-            Time = 3
-        })
-        
-        -- Try to interact with tower build point
-        local tower = workspace:FindFirstChild(towerName)
-        if tower then
-            -- Find interact button
-            local interact = tower:FindFirstChild("Interact") or 
-                           tower:FindFirstChild("Build") or
-                           tower:FindFirstChild("ProximityPrompt")
-            
-            if interact then
-                -- Fire proximity prompt
-                if interact:IsA("ProximityPrompt") then
-                    interact:InputHoldBegin()
-                    task.wait(0.5)
-                    interact:InputHoldEnd()
-                end
-            end
-        end
-        
-        -- Farm nearby titans while building
-        local farmStart = os.clock()
-        while os.clock() - farmStart < 30 do -- Max 30 seconds per tower
-            if not getgenv().AutoTSQuest then break end
-            
-            -- Attack nearby titans
-            pcall(function()
-                local titans = workspace:FindFirstChild("Titans")
-                if titans and lp.Character then
-                    local root = lp.Character:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        for _, titan in ipairs(titans:GetChildren()) do
-                            if titan:GetAttribute("Killed") then continue end
-                            
-                            local nape = titan:FindFirstChild("Hitboxes") and 
-                                        titan.Hitboxes:FindFirstChild("Hit") and
-                                        titan.Hitboxes.Hit:FindFirstChild("Nape")
-                            
-                            if nape and (nape.Position - root.Position).Magnitude < 200 then
-                                -- Kill nearby titans
-                                postRemote:FireServer("Hitboxes", "Register", nape, math.random(625, 850))
-                            end
-                        end
-                    end
-                end
-            end)
-            
-            -- Check if tower complete
-            if isTowerComplete(towerNum) then
-                return true
-            end
-            
-            task.wait(0.5)
-        end
-    end
-    
-    return false
-end
-
-TSQuestGroup:AddToggle("AutoTSQuestToggle", {
-    Text = "Auto TS Quest (Watch Towers)",
-    Default = false,
-    Tooltip = "Auto build Watch Towers 1→2→3 in Outskirts"
+TSQuestGroup:AddToggle("AutoWatchTowerToggle", {
+	Text = "Auto Build Watch Towers",
+	Default = false,
+	Tooltip = "WatchTower 1→2→3 auto banata hai, player ground pe anchor rehta hai aur AutoFarm titans ko marta hai"
 })
-Toggles.AutoTSQuestToggle:OnChanged(function()
-    getgenv().AutoTSQuest = Toggles.AutoTSQuestToggle.Value
-    
-    if getgenv().AutoTSQuest then
-        task.spawn(function()
-            Library:Notify({
-                Title = "🏗️ TS Quest Started",
-                Description = "Building Watch Towers 1→2→3...",
-                Time = 5
-            })
-            
-            -- Start auto farm for titan kills
-            if not Toggles.AutoKillToggle.Value then
-                Toggles.AutoKillToggle:SetValue(true)
-            end
-            
-            for towerNum = 1, 3 do
-                if not getgenv().AutoTSQuest then break end
-                
-                getgenv().CurrentTower = towerNum
-                
-                if isTowerComplete(towerNum) then
-                    Library:Notify({
-                        Title = "✅ TS Quest",
-                        Description = "WatchTower_" .. towerNum .. " already complete!",
-                        Time = 2
-                    })
-                else
-                    local success = false
-                    local attempts = 0
-                    
-                    while not success and attempts < 5 and getgenv().AutoTSQuest do
-                        success = createTower(towerNum)
-                        attempts = attempts + 1
-                        
-                        if not success then
-                            Library:Notify({
-                                Title = "🔄 TS Quest",
-                                Description = "Retrying WatchTower_" .. towerNum .. "...",
-                                Time = 2
-                            })
-                            task.wait(5)
-                        end
-                    end
-                    
-                    if success then
-                        Library:Notify({
-                            Title = "✅ TS Quest",
-                            Description = "WatchTower_" .. towerNum .. " Complete!",
-                            Time = 5
-                        })
-                    end
-                end
-                
-                task.wait(2)
-            end
-            
-            Library:Notify({
-                Title = "🏆 TS Quest Done!",
-                Description = "All 3 Watch Towers built!",
-                Time = 5
-            })
-            
-            getgenv().AutoTSQuest = false
-            Toggles.AutoTSQuestToggle:SetValue(false)
-        end)
-    end
+
+TSQuestGroup:AddLabel("Outskirts mission mein hi chalao", true)
+TSQuestGroup:AddLabel("AutoFarm ON rakhna titan kills ke liye", true)
+
+TSInfoGroup:AddLabel("Kaise kaam karta hai:")
+TSInfoGroup:AddLabel("1. WatchTower_1 dhundta hai")
+TSInfoGroup:AddLabel("2. Ground pe TP karta hai")
+TSInfoGroup:AddLabel("3. Wahan anchor rehta hai")
+TSInfoGroup:AddLabel("4. AutoFarm nearby titans maarta hai")
+TSInfoGroup:AddLabel("5. Tower complete → Tower 2 → 3")
+TSInfoGroup:AddLabel("Timeout: 5 min per tower (safety)")
+
+-- ==========================================
+-- MAIN LOGIC
+-- ==========================================
+
+Toggles.AutoWatchTowerToggle:OnChanged(function()
+	autoWatchTowerRunning = Toggles.AutoWatchTowerToggle.Value
+
+	-- Toggle OFF
+	if not autoWatchTowerRunning then
+		stopWatchTowerAnchor()
+		UpdateStatus("Idle")
+		return
+	end
+
+	-- AutoFarm enable karo agar OFF hai
+	if not AutoFarm._running then
+		if not Toggles.AutoKillToggle.Value then
+			Toggles.AutoKillToggle:SetValue(true)
+		else
+			AutoFarm:Start()
+		end
+	end
+
+	task.spawn(function()
+
+		-- Mission load hone ka wait
+		UpdateStatus("TS Quest: Mission ka wait...")
+		local waitStart = os.clock()
+		repeat
+			task.wait(1)
+		until checkMission()
+			or os.clock() - waitStart > 30
+			or not autoWatchTowerRunning
+
+		if not autoWatchTowerRunning then return end
+
+		local towersBuilt = 0
+
+		-- Teen towers ek ek karke
+		for towerNum = 1, 3 do
+			if not autoWatchTowerRunning then break end
+
+			local towerName = "WatchTower_" .. towerNum
+			UpdateStatus("TS Quest: " .. towerName .. " dhundh raha hai...")
+
+			-- Tower model milne ka wait (max 30s)
+			local tower = nil
+			local findStart = os.clock()
+			repeat
+				tower = getTowerModel(towerNum)
+				if not tower then task.wait(1) end
+			until tower
+				or os.clock() - findStart > 30
+				or not autoWatchTowerRunning
+
+			if not tower then
+				Library:Notify({
+					Title = "TS Quest",
+					Description = towerName .. " nahi mila! Skip kar raha hai...",
+					Time = 3
+				})
+				continue
+			end
+
+			Library:Notify({
+				Title = "TS Quest",
+				Description = towerName .. " mil gaya! Build ho raha hai...",
+				Time = 3
+			})
+
+			-- Initial ground position nikalo
+			local anchorPos = getTowerGroundPos(tower)
+			if not anchorPos then
+				-- Last resort fallback
+				local ok, cf = pcall(function() return tower:GetBoundingBox() end)
+				anchorPos = ok
+					and Vector3.new(cf.Position.X, cf.Position.Y - 5, cf.Position.Z + 12)
+					or Vector3.new(tower.Position.X, tower.Position.Y, tower.Position.Z + 12)
+			end
+
+			-- Pehle ek baar TP karo
+			local char = lp.Character
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			if root then root.CFrame = CFrame.new(anchorPos) end
+
+			-- Heartbeat anchor shuru karo
+			startWatchTowerAnchor(anchorPos)
+			UpdateStatus("TS Quest: Tower " .. towerNum .. "/3 build ho raha hai...")
+
+			local buildStart   = os.clock()
+			local lastPosUpdate = os.clock()
+			local lastStatusNotify = os.clock()
+
+			-- Tower complete hone ka wait loop
+			while autoWatchTowerRunning do
+				local now = os.clock()
+
+				-- Har 5s mein tower ki updated position re-anchor karo
+				-- (construction ke dauraan tower move ho sakta hai)
+				if now - lastPosUpdate >= 5 then
+					lastPosUpdate = now
+					local currentTower = getTowerModel(towerNum)
+					if currentTower then
+						local newPos = getTowerGroundPos(currentTower)
+						if newPos then
+							anchorPos = newPos
+							stopWatchTowerAnchor()
+							startWatchTowerAnchor(anchorPos)
+						end
+					end
+				end
+
+				-- Har 30s mein status update
+				if now - lastStatusNotify >= 30 then
+					lastStatusNotify = now
+					local elapsed = math.floor(now - buildStart)
+					UpdateStatus("TS Quest: Tower " .. towerNum .. "/3 (" .. elapsed .. "s)")
+				end
+
+				-- Tower complete check
+				local currentTower = getTowerModel(towerNum)
+				if isTowerComplete(currentTower, towerNum) then
+					towersBuilt = towersBuilt + 1
+					Library:Notify({
+						Title = "TS Quest",
+						Description = "✅ " .. towerName .. " Complete! (" .. towersBuilt .. "/3)",
+						Time = 3
+					})
+					break
+				end
+
+				-- Build trigger karne ki koshish (multiple remote patterns)
+				pcall(function()
+					local t = getTowerModel(towerNum)
+					if t then
+						postRemote:FireServer("Objectives", "Interact", t)
+						postRemote:FireServer("Objectives", "Build", t)
+						postRemote:FireServer("Build", "Progress", t)
+						getRemote:InvokeServer("Objectives", "Build", towerNum)
+						getRemote:InvokeServer("S_Objectives", "Interact", towerName)
+					end
+				end)
+
+				-- Safety timeout: 5 min per tower
+				if now - buildStart > 300 then
+					Library:Notify({
+						Title = "TS Quest",
+						Description = "⚠️ " .. towerName .. " timeout (5min). Agle pe ja raha hai...",
+						Time = 4
+					})
+					break
+				end
+
+				task.wait(0.5)
+			end -- while loop end
+
+			stopWatchTowerAnchor()
+
+			-- Next tower se pehle chhota break
+			if towerNum < 3 and autoWatchTowerRunning then
+				task.wait(1.5)
+			end
+		end -- for loop end
+
+		-- Final cleanup
+		stopWatchTowerAnchor()
+
+		if autoWatchTowerRunning then
+			Library:Notify({
+				Title = "TS Quest Complete!",
+				Description = "🎉 Saare " .. towersBuilt .. "/3 Watch Towers ban gaye!",
+				Time = 8
+			})
+			UpdateStatus("TS Quest: Complete!")
+		end
+
+		autoWatchTowerRunning = false
+		pcall(function() Toggles.AutoWatchTowerToggle:SetValue(false) end)
+	end)
 end)
 
--- Manual Tower TP buttons
-TSQuestGroup:AddDivider()
-TSQuestGroup:AddLabel("Manual Tower Teleport")
 
-for i = 1, 3 do
-    TSQuestGroup:AddButton({
-        Text = "TP to WatchTower_" .. i,
-        Func = function()
-            local success = tpToTower(i)
-            if success then
-                Library:Notify({
-                    Title = "📍 Teleported",
-                    Description = "WatchTower_" .. i,
-                    Time = 2
-                })
-            else
-                Library:Notify({
-                    Title = "❌ Not Found",
-                    Description = "WatchTower_" .. i .. " not found!",
-                    Time = 3
-                })
-            end
-        end,
-        Tooltip = "Teleport to WatchTower_" .. i
-    })
-end
 
-TSInfoGroup:AddLabel("🏗️ TS Quest Info")
-TSInfoGroup:AddLabel("• Build 3 Watch Towers")
-TSInfoGroup:AddLabel("• Order: 1 → 2 → 3")
-TSInfoGroup:AddLabel("• Map: Outskirts")
-TSInfoGroup:AddLabel("• Farms nearby titans")
-TSInfoGroup:AddLabel("• Auto TP to each tower")
-TSInfoGroup:AddLabel("• Max 5 retry attempts")
 
 
 -- ==========================================
