@@ -1929,6 +1929,44 @@ Toggles.NoclipToggle:OnChanged(function()
 end)
 
 -- ==========================================
+-- AUTO USE HOOKS
+-- ==========================================
+
+getgenv().AutoHooks = false
+
+MovementGroup:AddToggle("AutoHooksToggle", {
+    Text = "Auto Use Hooks",
+    Default = false,
+    Tooltip = "Auto Use Hooks for Safety!"
+})
+Toggles.AutoHooksToggle:OnChanged(function()
+    getgenv().AutoHooks = Toggles.AutoHooksToggle.Value
+    
+    if getgenv().AutoHooks then
+        task.spawn(function()
+            local vim = game:GetService("VirtualInputManager")
+            
+            while getgenv().AutoHooks do
+                -- Press Q
+                vim:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
+                task.wait(0.1)
+                vim:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
+                
+                task.wait(0.05)
+                
+                -- Press E
+                vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                task.wait(0.1)
+                vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                
+                -- Wait 3 seconds before next hooks
+                task.wait(3)
+            end
+        end)
+    end
+end)
+
+-- ==========================================
 -- AUTO DOUBLE JUMP BOOST (Auto Space Press)
 -- ==========================================
 
