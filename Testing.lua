@@ -1935,9 +1935,9 @@ end)
 getgenv().AutoHooks = false
 
 MovementGroup:AddToggle("AutoHooksToggle", {
-    Text = "Auto Use Hooks",
+    Text = "Auto Use Hooks (Q & E)",
     Default = false,
-    Tooltip = "Auto Use Hooks for Safety!"
+    Tooltip = "Auto press Q and E every 3 seconds for ODM hooks"
 })
 Toggles.AutoHooksToggle:OnChanged(function()
     getgenv().AutoHooks = Toggles.AutoHooksToggle.Value
@@ -1949,13 +1949,15 @@ Toggles.AutoHooksToggle:OnChanged(function()
             while getgenv().AutoHooks do
                 -- Press Q
                 vim:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
-                
+                task.wait(2)
+                vim:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
                 
                 task.wait(0.1)
                 
                 -- Press E
                 vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                
+                task.wait(2)
+                vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
                 
                 -- Wait 3 seconds before next hooks
                 task.wait(3)
