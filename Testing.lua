@@ -2089,12 +2089,7 @@ CombatGroup:AddSlider("AttackRangeSlider", {
 Options.AttackRangeSlider:OnChanged(function()
     getgenv().AutoFarmConfig.AttackRange = Options.AttackRangeSlider.Value
 end)
-task.spawn(function()
-    local slider = Options.AttackRangeSlider
-    if slider and slider.Label then
-        slider.Label.TextColor3 = Color3.fromRGB(139, 0, 0) -- Dark Red
-    end
-end)
+
 
 CombatGroup:AddToggle("MultiHitToggle", {
 	Text = "Multi Hit",
