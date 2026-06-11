@@ -3397,15 +3397,15 @@ Toggles.AutoWavesToggle:OnChanged(function()
 end)
 
 -- ==========================================
--- AUTO BUY SPEARS (WAVES)
+-- AUTO BUY SPEARS (WAVES) - DOUBLE CALL
 -- ==========================================
 
 getgenv().AutoBuySpears = false
 
 WavesFarmGroup:AddToggle("AutoBuySpearsToggle", {
-    Text = "Auto Buy Spears (250K)",
+    Text = "Auto Buy Spears 2",
     Default = false,
-    Tooltip = "Auto buy spears that costs 250K coins"
+    Tooltip = "Auto buy spears in waves mode (double call)"
 })
 Toggles.AutoBuySpearsToggle:OnChanged(function()
     getgenv().AutoBuySpears = Toggles.AutoBuySpearsToggle.Value
@@ -3414,6 +3414,9 @@ Toggles.AutoBuySpearsToggle:OnChanged(function()
         task.spawn(function()
             while getgenv().AutoBuySpears do
                 pcall(function()
+                    -- First call
+                    getRemote:InvokeServer("Equipment", "Weapon", "Spears")
+                    -- Second call (backup)
                     getRemote:InvokeServer("Equipment", "Weapon", "Spears")
                 end)
                 task.wait(3) -- Every 3 seconds
