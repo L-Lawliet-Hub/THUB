@@ -1935,9 +1935,9 @@ end)
 getgenv().AutoHooks = false
 
 MovementGroup:AddToggle("AutoHooksToggle", {
-    Text = "Auto Use Hooks (Q & E)",
+    Text = "Auto Use Hooks",
     Default = false,
-    Tooltip = "Auto press Q and E every 3 seconds for ODM hooks"
+    Tooltip = "Auto Use hooks for playing with safety"
 })
 Toggles.AutoHooksToggle:OnChanged(function()
     getgenv().AutoHooks = Toggles.AutoHooksToggle.Value
@@ -1973,9 +1973,9 @@ end)
 getgenv().SafeFarm = false
 
 MovementGroup:AddToggle("SafeFarmToggle", {
-    Text = "Safe Farm (Auto Click)",
+    Text = "Auto M1(Safety)",
     Default = false,
-    Tooltip = "Auto left click every 1 second for natural looking gameplay"
+    Tooltip = "Auto Use M1 - Safety"
 })
 Toggles.SafeFarmToggle:OnChanged(function()
     getgenv().SafeFarm = Toggles.SafeFarmToggle.Value
@@ -1988,11 +1988,11 @@ Toggles.SafeFarmToggle:OnChanged(function()
                 pcall(function()
                     -- Left click down
                     vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                    task.wait(1)
+                    task.wait(0.5)
                     -- Left click up
                     vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
                 end)
-                task.wait(2) -- Every 1 second
+                task.wait(1) -- Every 1 second
             end
         end)
     end
@@ -2004,9 +2004,9 @@ end)
 getgenv().DoubleJumpBoost = false
 
 MovementGroup:AddToggle("DoubleJumpToggle", {
-    Text = "Auto Jump Boost(For safety)",
+    Text = "Auto Jump Boost(Safety)",
     Default = false,
-    Tooltip = "Auto press space twice every 4s for speed boost"
+    Tooltip = "Auto Use jump boost every 5s for safety"
 })
 Toggles.DoubleJumpToggle:OnChanged(function()
     getgenv().DoubleJumpBoost = Toggles.DoubleJumpToggle.Value
@@ -2028,7 +2028,7 @@ Toggles.DoubleJumpToggle:OnChanged(function()
                 vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
                 
                 -- Wait 4 seconds before next boost
-                task.wait(4)
+                task.wait(5)
             end
         end)
     end
