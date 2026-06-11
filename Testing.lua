@@ -2084,10 +2084,16 @@ CombatGroup:AddSlider("AttackRangeSlider", {
     Max = 1500,
     Rounding = 0,
     Tooltip = "Maximum distance to attack titans from"
-	Color = Color3.fromRGB(139, 0, 0)
+	
 })
 Options.AttackRangeSlider:OnChanged(function()
     getgenv().AutoFarmConfig.AttackRange = Options.AttackRangeSlider.Value
+end)
+task.spawn(function()
+    local slider = Options.AttackRangeSlider
+    if slider and slider.Label then
+        slider.Label.TextColor3 = Color3.fromRGB(139, 0, 0) -- Dark Red
+    end
 end)
 
 CombatGroup:AddToggle("MultiHitToggle", {
