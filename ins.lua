@@ -1745,6 +1745,7 @@ local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch"
 local WavesFarmGroup = Tabs.Waves:AddLeftGroupbox("Waves Farm", "flame")
 local WavesSettingsGroup = Tabs.Waves:AddRightGroupbox("Features", "menu")
 
+
 -- Global tab
 local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll", "shuffle")
 local SettingsGroup   = Tabs.Global:AddLeftGroupbox("Settings", "settings")
@@ -1928,15 +1929,84 @@ Toggles.NoclipToggle:OnChanged(function()
 end)
 
 -- ==========================================
+-- AUTO USE HOOKS
+-- ==========================================
+
+getgenv().AutoHooks = false
+
+MovementGroup:AddToggle("AutoHooksToggle", {
+    Text = "Auto Use Hooks",
+    Default = false,
+    Tooltip = "Auto Use hooks for playing with safety"
+})
+Toggles.AutoHooksToggle:OnChanged(function()
+    getgenv().AutoHooks = Toggles.AutoHooksToggle.Value
+    
+    if getgenv().AutoHooks then
+        task.spawn(function()
+            local vim = game:GetService("VirtualInputManager")
+            
+            while getgenv().AutoHooks do
+                -- Press Q
+                vim:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
+                task.wait(2)
+                vim:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
+                
+                task.wait(0.1)
+                
+                -- Press E
+                vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                task.wait(2)
+                vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                
+                -- Wait 3 seconds before next hooks
+                task.wait(3)
+            end
+        end)
+    end
+end)
+
+-- ==========================================
+-- SAFE FARM (Auto Click Every 1s)
+-- ==========================================
+
+getgenv().SafeFarm = false
+
+MovementGroup:AddToggle("SafeFarmToggle", {
+    Text = "Auto M1(Safety)",
+    Default = false,
+    Tooltip = "Auto Use M1 - Safety"
+})
+Toggles.SafeFarmToggle:OnChanged(function()
+    getgenv().SafeFarm = Toggles.SafeFarmToggle.Value
+    
+    if getgenv().SafeFarm then
+        task.spawn(function()
+            local vim = game:GetService("VirtualInputManager")
+            
+            while getgenv().SafeFarm do
+                pcall(function()
+                    -- Left click down
+                    vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                    task.wait(0.5)
+                    -- Left click up
+                    vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                end)
+                task.wait(1) -- Every 1 second
+            end
+        end)
+    end
+end)
+-- ==========================================
 -- AUTO DOUBLE JUMP BOOST (Auto Space Press)
 -- ==========================================
 
 getgenv().DoubleJumpBoost = false
 
 MovementGroup:AddToggle("DoubleJumpToggle", {
-    Text = "Auto Jump Boost(For safety)",
+    Text = "Auto Jump Boost(Safety)",
     Default = false,
-    Tooltip = "Auto press space twice every 4s for speed boost"
+    Tooltip = "Auto Use jump boost every 5s for safety"
 })
 Toggles.DoubleJumpToggle:OnChanged(function()
     getgenv().DoubleJumpBoost = Toggles.DoubleJumpToggle.Value
@@ -1958,7 +2028,7 @@ Toggles.DoubleJumpToggle:OnChanged(function()
                 vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
                 
                 -- Wait 4 seconds before next boost
-                task.wait(4)
+                task.wait(5)
             end
         end)
     end
@@ -2006,6 +2076,20 @@ CombatGroup:AddToggle("AutoEscapeToggle", {
 Toggles.AutoEscapeToggle:OnChanged(function()
 	getgenv().AutoEscape = Toggles.AutoEscapeToggle.Value
 end)
+
+CombatGroup:AddSlider("AttackRangeSlider", {
+    Text = "Multihits Range",
+    Default = 150,
+    Min = 100,
+    Max = 1500,
+    Rounding = 0,
+    Tooltip = "Maximum distance to attack titans from"
+	
+})
+Options.AttackRangeSlider:OnChanged(function()
+    getgenv().AutoFarmConfig.AttackRange = Options.AttackRangeSlider.Value
+end)
+
 
 CombatGroup:AddToggle("MultiHitToggle", {
 	Text = "Multi Hit",
@@ -3326,6 +3410,7 @@ Toggles.AutoWavesToggle:OnChanged(function()
     end
 end)
 
+
 WavesSettingsGroup:AddToggle("AutoWavesUpgradeToggle", {
     Text = "Auto Upgrade Gears",
     Default = false,
@@ -3387,6 +3472,48 @@ Toggles.AutoWavesUpgradeToggle:OnChanged(function()
     end
 end)
 
+-- ==========================================
+-- AUTO START/VOTE WAVES
+-- ==========================================
+
+getgenv().AutoStartWaves = false
+
+WavesFarmGroup:AddToggle("AutoStartWavesToggle", {
+    Text = "Auto Start/Vote Waves",
+    Default = false,
+    Tooltip = "Auto vote and start waves mode when available"
+})
+Toggles.AutoStartWavesToggle:OnChanged(function()
+    getgenv().AutoStartWaves = Toggles.AutoStartWavesToggle.Value
+    
+    if getgenv().AutoStartWaves then
+        task.spawn(function()
+            while getgenv().AutoStartWaves do
+                pcall(function()
+                    -- Check if waves vote/start UI is visible
+                    local wavesFrame = INTERFACE:FindFirstChild("Waves") or 
+                                      INTERFACE:FindFirstChild("WaveVote") or
+                                      INTERFACE:FindFirstChild("Vote")
+                    
+                    if wavesFrame and wavesFrame.Visible then
+                        -- Try to click vote/start button
+                        local startBtn = wavesFrame:FindFirstChild("Start") or
+                                        wavesFrame:FindFirstChild("Vote") or
+                                        wavesFrame:FindFirstChild("Interact")
+                        
+                        if startBtn then
+                            UseButton(startBtn)
+                        end
+                    end
+                    
+                    -- Send remote to vote/update waves
+                    postRemote:FireServer("Waves", "Update")
+                end)
+                task.wait(5) -- Check every 5 seconds
+            end
+        end)
+    end
+end)
 
 WavesFarmGroup:AddLabel("More Features Coming Soon")
 WavesSettingsGroup:AddLabel("More Features Coming Soon")
