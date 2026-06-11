@@ -1316,7 +1316,7 @@ local function setupAutoExecute()
 			repeat task.wait() until game:IsLoaded()
 			task.wait(5)
 			getgenv().AutoExec = false
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/Testing.lua"))()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/ins.lua"))()
 		]])
 	end
 end
@@ -2075,6 +2075,19 @@ CombatGroup:AddToggle("AutoEscapeToggle", {
 })
 Toggles.AutoEscapeToggle:OnChanged(function()
 	getgenv().AutoEscape = Toggles.AutoEscapeToggle.Value
+end)
+
+CombatGroup:AddSlider("AttackRangeSlider", {
+    Text = "Multihits Range",
+    Default = 150,
+    Min = 100,
+    Max = 1500,
+    Rounding = 0,
+    Tooltip = "Maximum distance to attack titans from"
+	Color = Color3.fromRGB(139, 0, 0)
+})
+Options.AttackRangeSlider:OnChanged(function()
+    getgenv().AutoFarmConfig.AttackRange = Options.AttackRangeSlider.Value
 end)
 
 CombatGroup:AddToggle("MultiHitToggle", {
@@ -3459,15 +3472,15 @@ Toggles.AutoWavesUpgradeToggle:OnChanged(function()
 end)
 
 -- ==========================================
--- AUTO START/VOTE WAVES (BUTTON + REMOTE)
+-- AUTO START/VOTE WAVES
 -- ==========================================
 
 getgenv().AutoStartWaves = false
 
-WavesFarmGroup:AddToggle("AutoStartWavesToggle", {
+FeaturesGroup:AddToggle("AutoStartWavesToggle", {
     Text = "Auto Start/Vote Waves",
     Default = false,
-    Tooltip = "Auto vote and start waves"
+    Tooltip = "Auto vote and start waves mode when available"
 })
 Toggles.AutoStartWavesToggle:OnChanged(function()
     getgenv().AutoStartWaves = Toggles.AutoStartWavesToggle.Value
@@ -3476,39 +3489,26 @@ Toggles.AutoStartWavesToggle:OnChanged(function()
         task.spawn(function()
             while getgenv().AutoStartWaves do
                 pcall(function()
-                    -- Step 1: Try button click
-                    local waveVoteGui = INTERFACE:FindFirstChild("Wave_Vote") or INTERFACE:FindFirstChild("WaveVote")
+                    -- Check if waves vote/start UI is visible
+                    local wavesFrame = INTERFACE:FindFirstChild("Waves") or 
+                                      INTERFACE:FindFirstChild("WaveVote") or
+                                      INTERFACE:FindFirstChild("Vote")
                     
-                    if waveVoteGui and waveVoteGui.Visible then
-                        local btn = waveVoteGui:FindFirstChild("Vote", true) or waveVoteGui:FindFirstChild("Start", true)
-                        if btn then
-                            local vim = game:GetService("VirtualInputManager")
-                            local GuiService = game:GetService("GuiService")
-                            GuiService.SelectedObject = btn
-                            task.wait(0.05)
-                            vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                            vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                    if wavesFrame and wavesFrame.Visible then
+                        -- Try to click vote/start button
+                        local startBtn = wavesFrame:FindFirstChild("Start") or
+                                        wavesFrame:FindFirstChild("Vote") or
+                                        wavesFrame:FindFirstChild("Interact")
+                        
+                        if startBtn then
+                            UseButton(startBtn)
                         end
                     end
                     
-                    -- Step 2: Search all vote buttons
-                    for _, v in ipairs(INTERFACE:GetDescendants()) do
-                        if (v:IsA("TextButton") or v:IsA("ImageButton")) and v.Visible then
-                            if string.find(v.Name:lower(), "vote") or (v:IsA("TextButton") and string.find(v.Text:lower(), "vote")) then
-                                local vim = game:GetService("VirtualInputManager")
-                                local GuiService = game:GetService("GuiService")
-                                GuiService.SelectedObject = v
-                                task.wait(0.05)
-                                vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                                vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-                            end
-                        end
-                    end
-                    
-                    -- Step 3: Send remote
+                    -- Send remote to vote/update waves
                     postRemote:FireServer("Waves", "Update")
                 end)
-                task.wait(3)
+                task.wait(5) -- Check every 5 seconds
             end
         end)
     end
