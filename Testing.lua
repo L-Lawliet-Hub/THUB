@@ -3478,7 +3478,7 @@ end)
 
 getgenv().AutoStartWaves = false
 
-FeaturesGroup:AddToggle("AutoStartWavesToggle", {
+WavesFarmGroup:AddToggle("AutoStartWavesToggle", {
     Text = "Auto Start/Vote Waves",
     Default = false,
     Tooltip = "Auto vote and start waves mode when available"
