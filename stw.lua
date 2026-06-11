@@ -1,5 +1,5 @@
 -- ==========================================
--- WAVES BUTTON FINDER (Obsidian UI)
+-- AUTO-SCAN WHEN VOTE APPEARS
 -- ==========================================
 
 repeat task.wait() until game:IsLoaded()
@@ -12,147 +12,91 @@ local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 
 local Window = Library:CreateWindow({ 
-    Title = "Waves Button Finder", 
+    Title = "Waves Vote Finder", 
     Center = true, 
     AutoShow = true 
 })
 
 local Tab = Window:AddTab("Finder", "search")
-local Group = Tab:AddLeftGroupbox("Scan Results", "search")
-local InfoGroup = Tab:AddRightGroupbox("Info", "info")
+local Group = Tab:AddLeftGroupbox("Auto Detect", "eye")
 
-local resultLabel = Group:AddLabel("Click Scan to find buttons...")
-local statusLabel = Group:AddLabel("Status: Ready")
+local resultLabel = Group:AddLabel("Waiting for vote UI...")
+local statusLabel = Group:AddLabel("Status: Monitoring...")
 
--- Scan All Interface
-Group:AddButton({
-    Text = "🔍 Scan All Interface",
-    Func = function()
-        local found = {}
-        statusLabel:SetText("Status: Scanning...")
+-- Auto detect when vote appears
+task.spawn(function()
+    local lastScan = 0
+    
+    while true do
+        task.wait(2)
         
-        -- Search all visible buttons
-        for _, obj in ipairs(INTERFACE:GetDescendants()) do
-            if (obj:IsA("TextButton") or obj:IsA("ImageButton")) and obj.Visible then
-                local text = obj.Text or ""
-                local name = obj.Name or ""
+        -- Check all possible vote frames
+        local voteFrames = {
+            INTERFACE:FindFirstChild("Vote"),
+            INTERFACE:FindFirstChild("Voting"),
+            INTERFACE:FindFirstChild("Waves"),
+            INTERFACE:FindFirstChild("WaveVote"),
+            INTERFACE:FindFirstChild("Update"),
+            INTERFACE:FindFirstChild("Start"),
+        }
+        
+        for _, frame in ipairs(voteFrames) do
+            if frame and frame.Visible then
+                -- Vote appeared! Scan it
+                local result = "✅ Frame Found: " .. frame.Name .. "\n\nButtons:\n"
+                local found = 0
                 
-                -- Check for waves/vote related buttons
-                if string.find(string.lower(text), "wave") or 
-                   string.find(string.lower(name), "wave") or
-                   string.find(string.lower(text), "vote") or 
-                   string.find(string.lower(name), "vote") then
-                    
-                    table.insert(found, {
-                        name = name,
-                        text = text,
-                        parent = obj.Parent and obj.Parent.Name or "Unknown"
-                    })
+                for _, child in ipairs(frame:GetDescendants()) do
+                    if (child:IsA("TextButton") or child:IsA("ImageButton")) and child.Visible then
+                        found = found + 1
+                        result = result .. "• " .. child.Name
+                        if child.Text and child.Text ~= "" then
+                            result = result .. " | Text: " .. child.Text
+                        end
+                        result = result .. "\n"
+                    end
                 end
-            end
-        end
-        
-        -- Display results
-        local result = ""
-        if #found > 0 then
-            result = "✅ Found " .. #found .. " buttons:\n\n"
-            for i, btn in ipairs(found) do
-                result = result .. "[" .. i .. "] " .. btn.name .. "\n"
-                result = result .. "   Text: " .. btn.text .. "\n"
-                result = result .. "   Parent: " .. btn.parent .. "\n\n"
-            end
-        else
-            result = "❌ No waves/vote buttons found!\nMake sure vote UI is visible."
-        end
-        
-        resultLabel:SetText(result)
-        statusLabel:SetText("Status: Scan complete! Found: " .. #found)
-    end,
-    Tooltip = "Scan entire interface for waves/vote buttons"
-})
-
--- Scan Specific Frames
-Group:AddButton({
-    Text = "🔍 Scan 'Waves' Frame",
-    Func = function()
-        local wavesFrame = INTERFACE:FindFirstChild("Waves")
-        local result = ""
-        
-        if wavesFrame then
-            result = "✅ 'Waves' frame found!\n\nButtons:\n"
-            local found = 0
-            for _, child in ipairs(wavesFrame:GetDescendants()) do
-                if child:IsA("TextButton") or child:IsA("ImageButton") then
-                    found = found + 1
-                    result = result .. "- " .. child.Name .. " | Text: " .. (child.Text or "N/A") .. "\n"
+                
+                -- Also search for buttons with "wave" in name
+                result = result .. "\nWave-related buttons in Interface:\n"
+                for _, obj in ipairs(INTERFACE:GetDescendants()) do
+                    if (obj:IsA("TextButton") or obj:IsA("ImageButton")) and obj.Visible then
+                        local text = obj.Text or ""
+                        local name = obj.Name or ""
+                        if string.find(string.lower(text), "wave") or string.find(string.lower(name), "wave") then
+                            result = result .. "• " .. name .. " | Text: " .. text .. "\n"
+                            found = found + 1
+                        end
+                    end
                 end
+                
+                resultLabel:SetText(result)
+                statusLabel:SetText("Status: Found " .. found .. " buttons!")
+                
+                -- Also print to console
+                print(result)
             end
-            if found == 0 then
-                result = result .. "No buttons inside 'Waves' frame"
-            end
-        else
-            result = "❌ 'Waves' frame NOT found!"
         end
-        
-        resultLabel:SetText(result)
-        statusLabel:SetText("Status: Waves frame scan done")
-    end,
-    Tooltip = "Scan only the Waves frame"
-})
+    end
+end)
 
+-- Manual scan button
 Group:AddButton({
-    Text = "🔍 Scan 'Vote' Frame",
+    Text = "🔍 Force Scan Now",
     Func = function()
-        local voteFrame = INTERFACE:FindFirstChild("Vote") or INTERFACE:FindFirstChild("Voting")
-        local result = ""
+        statusLabel:SetText("Status: Force scanning...")
         
-        if voteFrame then
-            result = "✅ 'Vote' frame found!\n\nButtons:\n"
-            local found = 0
-            for _, child in ipairs(voteFrame:GetDescendants()) do
-                if child:IsA("TextButton") or child:IsA("ImageButton") then
-                    found = found + 1
-                    result = result .. "- " .. child.Name .. " | Text: " .. (child.Text or "N/A") .. "\n"
-                end
+        local result = "ALL Interface children:\n\n"
+        for _, child in ipairs(INTERFACE:GetChildren()) do
+            if child:IsA("Frame") or child:IsA("ScreenGui") then
+                result = result .. "📁 " .. child.Name .. " (Visible: " .. tostring(child.Visible) .. ")\n"
             end
-            if found == 0 then
-                result = result .. "No buttons inside 'Vote' frame"
-            end
-        else
-            result = "❌ 'Vote' frame NOT found!"
         end
         
         resultLabel:SetText(result)
-        statusLabel:SetText("Status: Vote frame scan done")
     end,
-    Tooltip = "Scan only the Vote frame"
+    Tooltip = "Force scan all interface children"
 })
 
--- Scan ALL frames (show all frame names)
-Group:AddButton({
-    Text = "📋 List All Visible Frames",
-    Func = function()
-        local frames = {}
-        for _, obj in ipairs(INTERFACE:GetDescendants()) do
-            if obj:IsA("Frame") and obj.Visible and #obj:GetChildren() > 0 then
-                table.insert(frames, obj.Name)
-            end
-        end
-        
-        local result = "Visible Frames:\n\n"
-        for _, name in ipairs(frames) do
-            result = result .. "• " .. name .. "\n"
-        end
-        
-        resultLabel:SetText(result)
-        statusLabel:SetText("Status: Found " .. #frames .. " visible frames")
-    end,
-    Tooltip = "List all visible frame names in Interface"
-})
-
--- Info
-InfoGroup:AddLabel("📌 Instructions:")
-InfoGroup:AddLabel("1. Wait for waves vote UI")
-InfoGroup:AddLabel("2. Click 'Scan All Interface'")
-InfoGroup:AddLabel("3. Note the button names")
-InfoGroup:AddLabel("4. Share results for script fix")
+Group:AddLabel("Script auto-detects when vote appears")
+Group:AddLabel("Keep this running while waiting for vote")
