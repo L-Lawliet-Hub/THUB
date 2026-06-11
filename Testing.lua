@@ -1967,16 +1967,15 @@ Toggles.AutoHooksToggle:OnChanged(function()
 end)
 
 -- ==========================================
--- SAFE FARM (Auto Left Click on Kill)
+-- SAFE FARM (Auto Click Every 1s)
 -- ==========================================
 
 getgenv().SafeFarm = false
 
 MovementGroup:AddToggle("SafeFarmToggle", {
-    Text = "Safe Farm",
-		
+    Text = "Safe Farm (Auto Click)",
     Default = false,
-    Tooltip = "Auto M1 Animation for safety"
+    Tooltip = "Auto left click every 1 second for natural looking gameplay"
 })
 Toggles.SafeFarmToggle:OnChanged(function()
     getgenv().SafeFarm = Toggles.SafeFarmToggle.Value
@@ -1984,28 +1983,20 @@ Toggles.SafeFarmToggle:OnChanged(function()
     if getgenv().SafeFarm then
         task.spawn(function()
             local vim = game:GetService("VirtualInputManager")
-            local lastKillCount = lp:GetAttribute("Kills") or 0
             
             while getgenv().SafeFarm do
                 pcall(function()
-                    local currentKills = lp:GetAttribute("Kills") or 0
-                    
-                    -- If got a kill, auto click
-                    if currentKills > lastKillCount then
-                        -- Left click
-                        vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                        task.wait(0.05)
-                        vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-                        
-                        lastKillCount = currentKills
-                    end
+                    -- Left click down
+                    vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                    task.wait(1)
+                    -- Left click up
+                    vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
                 end)
-                task.wait(0.3)
+                task.wait(2) -- Every 1 second
             end
         end)
     end
 end)
-
 -- ==========================================
 -- AUTO DOUBLE JUMP BOOST (Auto Space Press)
 -- ==========================================
