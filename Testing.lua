@@ -3459,15 +3459,15 @@ Toggles.AutoWavesUpgradeToggle:OnChanged(function()
 end)
 
 -- ==========================================
--- AUTO START/VOTE WAVES
+-- AUTO START/VOTE WAVES (BUTTON + REMOTE)
 -- ==========================================
 
 getgenv().AutoStartWaves = false
 
-WavesSettingsGroup:AddToggle("AutoStartWavesToggle", {
+WavesFarmGroup:AddToggle("AutoStartWavesToggle", {
     Text = "Auto Start/Vote Waves",
     Default = false,
-    Tooltip = "Auto vote and start waves mode when available"
+    Tooltip = "Auto vote and start waves"
 })
 Toggles.AutoStartWavesToggle:OnChanged(function()
     getgenv().AutoStartWaves = Toggles.AutoStartWavesToggle.Value
@@ -3476,26 +3476,39 @@ Toggles.AutoStartWavesToggle:OnChanged(function()
         task.spawn(function()
             while getgenv().AutoStartWaves do
                 pcall(function()
-                    -- Check if waves vote/start UI is visible
-                    local wavesFrame = INTERFACE:FindFirstChild("Waves") or 
-                                      INTERFACE:FindFirstChild("WaveVote") or
-                                      INTERFACE:FindFirstChild("Vote")
+                    -- Step 1: Try button click
+                    local waveVoteGui = INTERFACE:FindFirstChild("Wave_Vote") or INTERFACE:FindFirstChild("WaveVote")
                     
-                    if wavesFrame and wavesFrame.Visible then
-                        -- Try to click vote/start button
-                        local startBtn = wavesFrame:FindFirstChild("Start") or
-                                        wavesFrame:FindFirstChild("Vote") or
-                                        wavesFrame:FindFirstChild("Interact")
-                        
-                        if startBtn then
-                            UseButton(startBtn)
+                    if waveVoteGui and waveVoteGui.Visible then
+                        local btn = waveVoteGui:FindFirstChild("Vote", true) or waveVoteGui:FindFirstChild("Start", true)
+                        if btn then
+                            local vim = game:GetService("VirtualInputManager")
+                            local GuiService = game:GetService("GuiService")
+                            GuiService.SelectedObject = btn
+                            task.wait(0.05)
+                            vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                            vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
                         end
                     end
                     
-                    -- Send remote to vote/update waves
+                    -- Step 2: Search all vote buttons
+                    for _, v in ipairs(INTERFACE:GetDescendants()) do
+                        if (v:IsA("TextButton") or v:IsA("ImageButton")) and v.Visible then
+                            if string.find(v.Name:lower(), "vote") or (v:IsA("TextButton") and string.find(v.Text:lower(), "vote")) then
+                                local vim = game:GetService("VirtualInputManager")
+                                local GuiService = game:GetService("GuiService")
+                                GuiService.SelectedObject = v
+                                task.wait(0.05)
+                                vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                                vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                            end
+                        end
+                    end
+                    
+                    -- Step 3: Send remote
                     postRemote:FireServer("Waves", "Update")
                 end)
-                task.wait(5) -- Check every 5 seconds
+                task.wait(3)
             end
         end)
     end
