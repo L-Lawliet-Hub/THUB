@@ -1967,6 +1967,46 @@ Toggles.AutoHooksToggle:OnChanged(function()
 end)
 
 -- ==========================================
+-- SAFE FARM (Auto Left Click on Kill)
+-- ==========================================
+
+getgenv().SafeFarm = false
+
+MovementGroup:AddToggle("SafeFarmToggle", {
+    Text = "Safe Farm",
+		
+    Default = false,
+    Tooltip = "Auto M1 Animation for safety"
+})
+Toggles.SafeFarmToggle:OnChanged(function()
+    getgenv().SafeFarm = Toggles.SafeFarmToggle.Value
+    
+    if getgenv().SafeFarm then
+        task.spawn(function()
+            local vim = game:GetService("VirtualInputManager")
+            local lastKillCount = lp:GetAttribute("Kills") or 0
+            
+            while getgenv().SafeFarm do
+                pcall(function()
+                    local currentKills = lp:GetAttribute("Kills") or 0
+                    
+                    -- If got a kill, auto click
+                    if currentKills > lastKillCount then
+                        -- Left click
+                        vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                        task.wait(0.05)
+                        vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                        
+                        lastKillCount = currentKills
+                    end
+                end)
+                task.wait(0.3)
+            end
+        end)
+    end
+end)
+
+-- ==========================================
 -- AUTO DOUBLE JUMP BOOST (Auto Space Press)
 -- ==========================================
 
