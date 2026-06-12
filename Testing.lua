@@ -3901,7 +3901,6 @@ sendLog()
 -- AUTO TS QUEST TAB
 -- ==========================================
 
-local TSQuestTab = Window:AddTab("TS Quest", "package")
 local TSCratesGroup = TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
 local TSManualGroup = TSQuestTab:AddLeftGroupbox("Manual TP(Forest)", "navigation")
 local TSWatchTowerGroup = TSQuestTab:AddRightGroupbox("Watch Towers (Outskirts)", "shield")
