@@ -124,6 +124,12 @@ getgenv().OpenSecondChest = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
 getgenv().AdminConfig = false
 getgenv().HideDamageText = false
+-- Market tab globals
+getgenv().AutoBuyBoosts = false
+getgenv().AutoUsePotions = false
+getgenv().AutoBuySpins = false
+getgenv().AutoBuyCrates = false
+getgenv().AutoOpenCratesEnabled = false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
 getgenv().CurrentStatusLabel = nil
@@ -1716,6 +1722,8 @@ local Tabs = {
 	Configs  = Window:AddTab("Configs", "settings-2"),
 	Upgrades = Window:AddTab("Upgrades", "trending-up"),
 	Waves    = Window:AddTab("Waves", "waves-horizontal"),
+	TSQuestTab = Window:AddTab("TS Quest", "package"),
+	Market   = Window:AddTab("Market", "shopping-cart"),
 	Global   = Window:AddTab("Central",   "globe"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
@@ -1744,6 +1752,17 @@ local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch"
 -- Waves tab
 local WavesFarmGroup = Tabs.Waves:AddLeftGroupbox("Waves Farm", "flame")
 local WavesSettingsGroup = Tabs.Waves:AddRightGroupbox("Features", "menu")
+
+-- ts
+local TSCratesGroup = Tabs.TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
+local TSManualGroup = Tabs.TSQuestTab:AddLeftGroupbox("Manual TP", "navigation")
+local TSWatchTowerGroup = Tabs.TSQuestTab:AddRightGroupbox("Watch Towers (Outskirts)", "shield")
+
+-- Market tab
+local MarketBoostGroup      = Tabs.Market:AddLeftGroupbox("Boosts / Potions", "zap")
+local MarketSpinsGroup      = Tabs.Market:AddLeftGroupbox("Spins", "rotate-cw")
+local MarketCratesBuyGroup  = Tabs.Market:AddRightGroupbox("Buy Crates", "package")
+local MarketCratesOpenGroup = Tabs.Market:AddRightGroupbox("Open Crates", "gift")
 
 
 -- Global tab
@@ -3517,6 +3536,652 @@ end)
 
 WavesFarmGroup:AddLabel("More Features Coming Soon")
 WavesSettingsGroup:AddLabel("More Features Coming Soon")
+
+-- ==========================================
+-- AUTO TS QUEST TAB
+-- ==========================================
+
+
+getgenv().AutoTSQuest = false
+local _tsQuestRunning = false
+local tsQuestStatusLabel = TSCratesGroup:AddLabel("Status: Idle")
+
+-- ==========================================
+-- HELPER FUNCTIONS
+-- ==========================================
+
+local function getTSSupply(index)
+	local unclimbable = workspace:FindFirstChild("Unclimbable")
+	if not unclimbable then return nil end
+	return unclimbable:FindFirstChild("ThunderSpear_Supplies" .. index)
+end
+
+local function getSuppliesCircle()
+	local unclimbable = workspace:FindFirstChild("Unclimbable")
+	if not unclimbable then return nil end
+	return unclimbable:FindFirstChild("Supplies_Circle")
+end
+
+local function tpToPart(part, offset)
+	local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+	if not root or not part then return false end
+	offset = offset or Vector3.new(0, 3, 4)
+	if part:IsA("BasePart") then
+		root.CFrame = part.CFrame * CFrame.new(offset)
+	elseif part:IsA("Model") then
+		local primary = part.PrimaryPart or part:FindFirstChildWhichIsA("BasePart")
+		if primary then
+			root.CFrame = primary.CFrame * CFrame.new(offset)
+		end
+	end
+	return true
+end
+
+local function updateTSStatus(text)
+	pcall(function() tsQuestStatusLabel:SetText("Status: " .. text) end)
+end
+
+-- ==========================================
+-- MAIN QUEST LOOP
+-- ==========================================
+
+local function runTSQuest()
+	if _tsQuestRunning then return end
+	_tsQuestRunning = true
+
+	task.spawn(function()
+		-- AutoFarm band karo
+		if AutoFarm._running then
+			AutoFarm:Stop()
+		end
+		if Toggles.AutoKillToggle.Value then
+			Toggles.AutoKillToggle:SetValue(false)
+		end
+
+		updateTSStatus("Starting...")
+		task.wait(1)
+
+		while getgenv().AutoTSQuest do
+			local circle = getSuppliesCircle()
+			if not circle then
+				updateTSStatus("Supplies_Circle not found!")
+				task.wait(2)
+				continue
+			end
+
+			local foundAny = false
+
+			for i = 1, 3 do
+				if not getgenv().AutoTSQuest then break end
+
+				local supply = getTSSupply(i)
+				if not supply or not supply.Parent then continue end
+
+				foundAny = true
+				local waitSecs = Options.TSPickupWaitSlider.Value
+
+				-- Step 1: TP to supply
+				updateTSStatus("Going to Supply " .. i .. "...")
+				pcall(function() tpToPart(supply, Vector3.new(0, 3, 3)) end)
+				task.wait(waitSecs)
+
+				if not getgenv().AutoTSQuest then break end
+
+				-- Step 2: Deliver to circle
+				updateTSStatus("Delivering Supply " .. i .. "...")
+				pcall(function() tpToPart(circle, Vector3.new(0, 3, 0)) end)
+				task.wait(2)
+			end
+
+			-- Check remaining
+			local remaining = 0
+			for i = 1, 3 do
+				if getTSSupply(i) then remaining += 1 end
+			end
+
+			if not foundAny or remaining == 0 then
+				updateTSStatus("All Delivered! ✅")
+				Library:Notify({ Title = "TS Quest", Description = "All 3 supplies retrieved!", Time = 5 })
+				task.wait(3)
+			else
+				task.wait(1)
+			end
+		end
+
+		updateTSStatus("Idle")
+		_tsQuestRunning = false
+	end)
+end
+
+-- ==========================================
+-- LEFT GROUP : Auto Toggle + Settings
+-- ==========================================
+
+TSCratesGroup:AddToggle("AutoTSQuestToggle", {
+	Text = "Auto Retrieve Supplies",
+	Default = false,
+	Tooltip = "Auto TPs to each supply crate then delivers to Supplies_Circle"
+})
+Toggles.AutoTSQuestToggle:OnChanged(function()
+	getgenv().AutoTSQuest = Toggles.AutoTSQuestToggle.Value
+	if getgenv().AutoTSQuest then
+		Library:Notify({ Title = "TS Quest", Description = "AutoFarm disabled, TS Quest starting!", Time = 3 })
+		runTSQuest()
+	else
+		_tsQuestRunning = false
+		updateTSStatus("Idle")
+	end
+end)
+
+TSCratesGroup:AddSlider("TSPickupWaitSlider", {
+	Text = "Pickup Wait (seconds)",
+	Default = 4,
+	Min = 1,
+	Max = 8,
+	Rounding = 1,
+	Tooltip = "Wait x sec after collecting the supply!"
+})
+
+
+-- ==========================================
+-- RIGHT GROUP : Manual TP Buttons
+-- ==========================================
+
+TSManualGroup:AddButton({
+	Text = "TP to Supply 1",
+	Func = function()
+		local s = getTSSupply(1)
+		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 1 not found!", Time = 3 }); return end
+		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 1", Time = 2 })
+	end,
+})
+
+TSManualGroup:AddButton({
+	Text = "TP to Supply 2",
+	Func = function()
+		local s = getTSSupply(2)
+		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 2 not found!", Time = 3 }); return end
+		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 2", Time = 2 })
+	end,
+})
+
+TSManualGroup:AddButton({
+	Text = "TP to Supply 3",
+	Func = function()
+		local s = getTSSupply(3)
+		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 3 not found!", Time = 3 }); return end
+		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 3", Time = 2 })
+	end,
+})
+
+TSManualGroup:AddButton({
+	Text = "TP to Supplies Circle",
+	Func = function()
+		local c = getSuppliesCircle()
+		if not c then Library:Notify({ Title = "TS Quest", Description = "Supplies_Circle not found!", Time = 3 }); return end
+		pcall(function() tpToPart(c, Vector3.new(0, 3, 0)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Circle", Time = 2 })
+	end,
+})
+
+-- ==========================================
+-- WATCH TOWERS (OUTSKIRTS) - RIGHT GROUPBOX
+-- ==========================================
+
+local function getWatchTower(index)
+    return workspace:FindFirstChild("WatchTower_" .. index)
+end
+
+local function tpToWatchTower(index)
+    local wt = getWatchTower(index)
+    if not wt then
+        Library:Notify({ Title = "❌ Not Found", Description = "WatchTower_" .. index .. " not found!", Time = 3 })
+        return
+    end
+    
+    local pos = nil
+    if wt:IsA("BasePart") then
+        pos = wt.Position
+    elseif wt:IsA("Model") then
+        local primary = wt.PrimaryPart or wt:FindFirstChildWhichIsA("BasePart")
+        if primary then pos = primary.Position end
+    end
+    
+    if pos then
+        local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
+            Library:Notify({ Title = "📍 Teleported", Description = "Watch Tower " .. index, Time = 2 })
+        end
+    end
+end
+
+TSWatchTowerGroup:AddLabel("Manual Teleport")
+
+TSWatchTowerGroup:AddButton({
+    Text = "TP to Watch Tower 1",
+    Func = function() tpToWatchTower(1) end,
+    Tooltip = "Teleport to WatchTower_1"
+})
+
+TSWatchTowerGroup:AddButton({
+    Text = "TP to Watch Tower 2",
+    Func = function() tpToWatchTower(2) end,
+    Tooltip = "Teleport to WatchTower_2"
+})
+
+TSWatchTowerGroup:AddButton({
+    Text = "TP to Watch Tower 3",
+    Func = function() tpToWatchTower(3) end,
+    Tooltip = "Teleport to WatchTower_3"
+})
+
+
+
+-- ==========================================
+-- MARKET TAB
+-- ==========================================
+
+local boostIndexMap = {
+    ["XP Boost [30m]"]   = 1,
+    ["XP Boost [1h]"]    = 2,
+    ["XP Boost [2h]"]    = 3,
+    ["Luck Boost [30m]"] = 4,
+    ["Luck Boost [1h]"]  = 5,
+    ["Luck Boost [2h]"]  = 6,
+    ["Gold Boost [30m]"] = 7,
+    ["Gold Boost [1h]"]  = 8,
+    ["Gold Boost [2h]"]  = 9,
+}
+
+local boostUseNames = {
+    ["XP Boost [30m]"]   = "2x XP Boost [30m]",
+    ["XP Boost [1h]"]    = "2x XP Boost [1h]",
+    ["XP Boost [2h]"]    = "2x XP Boost [2h]",
+    ["Luck Boost [30m]"] = "2x Luck Boost [30m]",
+    ["Luck Boost [1h]"]  = "2x Luck Boost [1h]",
+    ["Luck Boost [2h]"]  = "2x Luck Boost [2h]",
+    ["Gold Boost [30m]"] = "2x Gold Boost [30m]",
+    ["Gold Boost [1h]"]  = "2x Gold Boost [1h]",
+    ["Gold Boost [2h]"]  = "2x Gold Boost [2h]",
+}
+
+local marketBoostValues = {
+    "XP Boost [30m]", "XP Boost [1h]", "XP Boost [2h]",
+    "Luck Boost [30m]", "Luck Boost [1h]", "Luck Boost [2h]",
+    "Gold Boost [30m]", "Gold Boost [1h]", "Gold Boost [2h]",
+}
+
+local spinIndexMap = {
+    ["5 Spins"]   = 1,
+    ["25 Spins"]  = 2,
+    ["100 Spins"] = 3,
+    ["250 Spins"] = 4,
+    ["500 Spins"] = 5,
+}
+
+local crateNames = {"Scout Fashion [2]", "Anime All-Stars [5]", "Anime All-Stars [6]", "Blade Burst [2]"}
+local crateBuyIndexMap = {
+    ["Scout Fashion [2]"]   = 1,
+    ["Anime All-Stars [5]"] = 2,
+    ["Anime All-Stars [6]"] = 3,
+	
+    ["Blade Burst [2]"]     = 4,
+}
+
+-- ==========================================
+-- MARKET TAB : Auto Buy Boosts
+-- ==========================================
+
+MarketBoostGroup:AddToggle("AutoBuyBoostsToggle", {
+    Text = "Auto Buy Boosts",
+    Default = false,
+    Tooltip = "Continuously buys selected boosts from the market"
+})
+Toggles.AutoBuyBoostsToggle:OnChanged(function()
+    getgenv().AutoBuyBoosts = Toggles.AutoBuyBoostsToggle.Value
+    if not getgenv().AutoBuyBoosts then return end
+    task.spawn(function()
+        while getgenv().AutoBuyBoosts do
+            local selected = Options.MarketBoostSelectDropdown.Value or {}
+            local amount = Options.MarketBoostAmountSlider.Value or 1
+            local boughtAny = false
+            for boostName, isActive in pairs(selected) do
+                if not isActive then continue end
+                local idx = boostIndexMap[boostName]
+                if not idx then continue end
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Market", "Buy", "1_Boosts", idx, amount)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    boughtAny = true
+                    Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. boostName, Time = 2 })
+                elseif ok and (result == nil or result == false) then
+                    Library:Notify({ Title = "Market", Description = "❌ " .. boostName .. " – not enough coins!", Time = 2 })
+                end
+                task.wait(0.5)
+            end
+            task.wait(boughtAny and 30 or 5)
+        end
+    end)
+end)
+
+MarketBoostGroup:AddDropdown("MarketBoostSelectDropdown", {
+    Values = marketBoostValues,
+    Default = {},
+    Multi = true,
+    Text = "Select Boosts to Buy",
+    Tooltip = "Pick which boosts to auto-purchase"
+})
+
+MarketBoostGroup:AddSlider("MarketBoostAmountSlider", {
+    Text = "Amount",
+    Default = 1,
+    Min = 1,
+    Max = 99,
+    Rounding = 0,
+})
+
+MarketBoostGroup:AddButton({
+    Text = "Buy Now",
+    Func = function()
+        task.spawn(function()
+            local selected = Options.MarketBoostSelectDropdown.Value or {}
+            local amount = Options.MarketBoostAmountSlider.Value or 1
+            local bought = 0
+            for boostName, isActive in pairs(selected) do
+                if not isActive then continue end
+                local idx = boostIndexMap[boostName]
+                if not idx then continue end
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Market", "Buy", "1_Boosts", idx, amount)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    bought = bought + 1
+                    Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. boostName, Time = 2 })
+                else
+                    Library:Notify({ Title = "Market", Description = "❌ " .. boostName .. " failed!", Time = 2 })
+                end
+                task.wait(0.3)
+            end
+            if bought == 0 then
+                Library:Notify({ Title = "Market", Description = "No boosts selected!", Time = 3 })
+            end
+        end)
+    end,
+    Tooltip = "Instantly buy selected boosts"
+})
+
+MarketBoostGroup:AddDivider()
+
+-- ==========================================
+-- MARKET TAB : Auto Use Potions
+-- ==========================================
+
+MarketBoostGroup:AddToggle("AutoUsePotionsToggle", {
+    Text = "Auto Use Potions",
+    Default = false,
+    Tooltip = "Auto uses selected boosts from inventory every 60s"
+})
+Toggles.AutoUsePotionsToggle:OnChanged(function()
+    getgenv().AutoUsePotions = Toggles.AutoUsePotionsToggle.Value
+    if not getgenv().AutoUsePotions then return end
+    task.spawn(function()
+        while getgenv().AutoUsePotions do
+            local selected = Options.MarketUsePotionDropdown.Value or {}
+            for boostName, isActive in pairs(selected) do
+                if not isActive then continue end
+                local invName = boostUseNames[boostName]
+                if not invName then continue end
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Inventory", "Item", invName)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    Library:Notify({ Title = "Potions", Description = "✅ Used " .. invName, Time = 2 })
+                end
+                task.wait(0.5)
+            end
+            task.wait(60)
+        end
+    end)
+end)
+
+MarketBoostGroup:AddDropdown("MarketUsePotionDropdown", {
+    Values = marketBoostValues,
+    Default = {},
+    Multi = true,
+    Text = "Potions to Auto Use",
+    Tooltip = "Select boosts to auto-use from inventory"
+})
+
+MarketBoostGroup:AddButton({
+    Text = "Use Potions Now",
+    Func = function()
+        task.spawn(function()
+            local selected = Options.MarketUsePotionDropdown.Value or {}
+            local used = 0
+            for boostName, isActive in pairs(selected) do
+                if not isActive then continue end
+                local invName = boostUseNames[boostName]
+                if not invName then continue end
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Inventory", "Item", invName)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    used = used + 1
+                    Library:Notify({ Title = "Potions", Description = "✅ Used " .. invName, Time = 2 })
+                end
+                task.wait(0.3)
+            end
+            if used == 0 then
+                Library:Notify({ Title = "Potions", Description = "None in inventory!", Time = 3 })
+            end
+        end)
+    end,
+    Tooltip = "Use selected potions from inventory instantly"
+})
+
+-- ==========================================
+-- MARKET TAB : Spins
+-- ==========================================
+
+MarketSpinsGroup:AddToggle("AutoBuySpinsToggle", {
+    Text = "Auto Buy Spins",
+    Default = false,
+    Tooltip = "Continuously buys selected spin pack from market"
+})
+Toggles.AutoBuySpinsToggle:OnChanged(function()
+    getgenv().AutoBuySpins = Toggles.AutoBuySpinsToggle.Value
+    if not getgenv().AutoBuySpins then return end
+    task.spawn(function()
+        while getgenv().AutoBuySpins do
+            local pack = Options.MarketSpinPackDropdown.Value
+            local amount = Options.MarketSpinAmountSlider.Value or 1
+            local idx = spinIndexMap[pack]
+            if idx then
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Market", "Buy", "Spins", idx, amount)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. pack, Time = 2 })
+                else
+                    Library:Notify({ Title = "Market", Description = "❌ Not enough coins!", Time = 2 })
+                end
+            end
+            task.wait(10)
+        end
+    end)
+end)
+
+MarketSpinsGroup:AddDropdown("MarketSpinPackDropdown", {
+    Values = {"5 Spins", "25 Spins", "100 Spins", "250 Spins", "500 Spins"},
+    Default = 1,
+    Multi = false,
+    Text = "Spin Pack",
+})
+
+MarketSpinsGroup:AddSlider("MarketSpinAmountSlider", {
+    Text = "Amount",
+    Default = 1,
+    Min = 1,
+    Max = 99,
+    Rounding = 0,
+})
+
+MarketSpinsGroup:AddButton({
+    Text = "Buy Spins Now",
+    Func = function()
+        task.spawn(function()
+            local pack = Options.MarketSpinPackDropdown.Value
+            local amount = Options.MarketSpinAmountSlider.Value or 1
+            local idx = spinIndexMap[pack]
+            if not idx then
+                Library:Notify({ Title = "Market", Description = "Select a spin pack!", Time = 3 })
+                return
+            end
+            local ok, result = pcall(function()
+                return getRemote:InvokeServer("S_Market", "Buy", "Spins", idx, amount)
+            end)
+            if ok and result ~= nil and result ~= false then
+                Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. pack, Time = 3 })
+            else
+                Library:Notify({ Title = "Market", Description = "❌ Buy failed! Not enough coins?", Time = 3 })
+            end
+        end)
+    end,
+    Tooltip = "Buy selected spin pack instantly"
+})
+
+-- ==========================================
+-- MARKET TAB : Buy Crates
+-- ==========================================
+
+MarketCratesBuyGroup:AddToggle("AutoBuyCratesToggle", {
+    Text = "Auto Buy Crates",
+    Default = false,
+    Tooltip = "Continuously buys selected crate from market"
+})
+Toggles.AutoBuyCratesToggle:OnChanged(function()
+    getgenv().AutoBuyCrates = Toggles.AutoBuyCratesToggle.Value
+    if not getgenv().AutoBuyCrates then return end
+    task.spawn(function()
+        while getgenv().AutoBuyCrates do
+            local crate = Options.MarketCrateBuyDropdown.Value
+            local amount = Options.MarketCrateAmountSlider.Value or 1
+            local idx = crateBuyIndexMap[crate]
+            if idx then
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Market", "Buy", "Crates", idx, amount)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. crate, Time = 2 })
+                else
+                    Library:Notify({ Title = "Market", Description = "❌ Not enough coins!", Time = 2 })
+                end
+            end
+            task.wait(10)
+        end
+    end)
+end)
+
+MarketCratesBuyGroup:AddDropdown("MarketCrateBuyDropdown", {
+    Values = crateNames,
+    Default = 1,
+    Multi = false,
+    Text = "Crate Type",
+})
+
+MarketCratesBuyGroup:AddSlider("MarketCrateAmountSlider", {
+    Text = "Amount",
+    Default = 1,
+    Min = 1,
+    Max = 99,
+    Rounding = 0,
+})
+
+MarketCratesBuyGroup:AddButton({
+    Text = "Buy Crate Now",
+    Func = function()
+        task.spawn(function()
+            local crate = Options.MarketCrateBuyDropdown.Value
+            local amount = Options.MarketCrateAmountSlider.Value or 1
+            local idx = crateBuyIndexMap[crate]
+            if not idx then
+                Library:Notify({ Title = "Market", Description = "Select a crate!", Time = 3 })
+                return
+            end
+            local ok, result = pcall(function()
+                return getRemote:InvokeServer("S_Market", "Buy", "Crates", idx, amount)
+            end)
+            if ok and result ~= nil and result ~= false then
+                Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. crate, Time = 3 })
+            else
+                Library:Notify({ Title = "Market", Description = "❌ Buy failed! Not enough coins?", Time = 3 })
+            end
+        end)
+    end,
+    Tooltip = "Buy selected crate instantly"
+})
+
+-- ==========================================
+-- MARKET TAB : Open Crates
+-- ==========================================
+
+MarketCratesOpenGroup:AddToggle("AutoOpenCratesToggle", {
+    Text = "Auto Open Crates",
+    Default = false,
+    Tooltip = "Continuously opens selected crate from inventory until none left"
+})
+Toggles.AutoOpenCratesToggle:OnChanged(function()
+    getgenv().AutoOpenCratesEnabled = Toggles.AutoOpenCratesToggle.Value
+    if not getgenv().AutoOpenCratesEnabled then return end
+    task.spawn(function()
+        while getgenv().AutoOpenCratesEnabled do
+            local crate = Options.MarketCrateOpenDropdown.Value
+            local ok, result = pcall(function()
+                return getRemote:InvokeServer("S_Inventory", "Crate", crate)
+            end)
+            if ok and result ~= nil and result ~= false then
+                Library:Notify({ Title = "Crates", Description = "✅ Opened: " .. crate, Time = 1.5 })
+                task.wait(0.8)
+            else
+                Library:Notify({ Title = "Crates", Description = "❌ " .. crate .. " – none left!", Time = 3 })
+                getgenv().AutoOpenCratesEnabled = false
+                Toggles.AutoOpenCratesToggle:SetValue(false)
+            end
+        end
+    end)
+end)
+
+MarketCratesOpenGroup:AddDropdown("MarketCrateOpenDropdown", {
+    Values = crateNames,
+    Default = 1,
+    Multi = false,
+    Text = "Crate to Open",
+})
+
+MarketCratesOpenGroup:AddButton({
+    Text = "Open One Crate",
+    Func = function()
+        task.spawn(function()
+            local crate = Options.MarketCrateOpenDropdown.Value
+            local ok, result = pcall(function()
+                return getRemote:InvokeServer("S_Inventory", "Crate", crate)
+            end)
+            if ok and result ~= nil and result ~= false then
+                Library:Notify({ Title = "Crates", Description = "✅ Opened: " .. crate, Time = 3 })
+            else
+                Library:Notify({ Title = "Crates", Description = "❌ No " .. crate .. " in inventory!", Time = 3 })
+            end
+        end)
+    end,
+    Tooltip = "Open one crate immediately"
+})
+
+MarketCratesOpenGroup:AddLabel("Auto open stops when inventory\nis empty. Buy more first!")
 
 
 -- ==========================================
