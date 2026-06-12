@@ -3895,3 +3895,195 @@ end
 
 
 sendLog()
+
+-- ==========================================
+-- AUTO TS QUEST TAB
+-- ==========================================
+
+local TSQuestTab = Window:AddTab("TS Quest", "package")
+local TSCratesGroup = TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
+local TSManualGroup = TSQuestTab:AddRightGroupbox("Manual TP", "navigation")
+
+getgenv().AutoTSQuest = false
+local _tsQuestRunning = false
+local tsQuestStatusLabel = TSCratesGroup:AddLabel("Status: Idle")
+
+-- ==========================================
+-- HELPER FUNCTIONS
+-- ==========================================
+
+local function getTSSupply(index)
+	local unclimbable = workspace:FindFirstChild("Unclimbable")
+	if not unclimbable then return nil end
+	return unclimbable:FindFirstChild("ThunderSpear_Supplies" .. index)
+end
+
+local function getSuppliesCircle()
+	local unclimbable = workspace:FindFirstChild("Unclimbable")
+	if not unclimbable then return nil end
+	return unclimbable:FindFirstChild("Supplies_Circle")
+end
+
+local function tpToPart(part, offset)
+	local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+	if not root or not part then return false end
+	offset = offset or Vector3.new(0, 3, 4)
+	if part:IsA("BasePart") then
+		root.CFrame = part.CFrame * CFrame.new(offset)
+	elseif part:IsA("Model") then
+		local primary = part.PrimaryPart or part:FindFirstChildWhichIsA("BasePart")
+		if primary then
+			root.CFrame = primary.CFrame * CFrame.new(offset)
+		end
+	end
+	return true
+end
+
+local function updateTSStatus(text)
+	pcall(function() tsQuestStatusLabel:SetText("Status: " .. text) end)
+end
+
+-- ==========================================
+-- MAIN QUEST LOOP
+-- ==========================================
+
+local function runTSQuest()
+	if _tsQuestRunning then return end
+	_tsQuestRunning = true
+
+	task.spawn(function()
+		-- AutoFarm band karo
+		if AutoFarm._running then
+			AutoFarm:Stop()
+		end
+		if Toggles.AutoKillToggle.Value then
+			Toggles.AutoKillToggle:SetValue(false)
+		end
+
+		updateTSStatus("Starting...")
+		task.wait(1)
+
+		while getgenv().AutoTSQuest do
+			local circle = getSuppliesCircle()
+			if not circle then
+				updateTSStatus("Supplies_Circle not found!")
+				task.wait(2)
+				continue
+			end
+
+			local foundAny = false
+
+			for i = 1, 3 do
+				if not getgenv().AutoTSQuest then break end
+
+				local supply = getTSSupply(i)
+				if not supply or not supply.Parent then continue end
+
+				foundAny = true
+				local waitSecs = Options.TSPickupWaitSlider.Value
+
+				-- Step 1: TP to supply
+				updateTSStatus("Going to Supply " .. i .. "...")
+				pcall(function() tpToPart(supply, Vector3.new(0, 3, 3)) end)
+				task.wait(waitSecs)
+
+				if not getgenv().AutoTSQuest then break end
+
+				-- Step 2: Deliver to circle
+				updateTSStatus("Delivering Supply " .. i .. "...")
+				pcall(function() tpToPart(circle, Vector3.new(0, 3, 0)) end)
+				task.wait(2)
+			end
+
+			-- Check remaining
+			local remaining = 0
+			for i = 1, 3 do
+				if getTSSupply(i) then remaining += 1 end
+			end
+
+			if not foundAny or remaining == 0 then
+				updateTSStatus("All Delivered! ✅")
+				Library:Notify({ Title = "TS Quest", Description = "All 3 supplies retrieved!", Time = 5 })
+				task.wait(3)
+			else
+				task.wait(1)
+			end
+		end
+
+		updateTSStatus("Idle")
+		_tsQuestRunning = false
+	end)
+end
+
+-- ==========================================
+-- LEFT GROUP : Auto Toggle + Settings
+-- ==========================================
+
+TSCratesGroup:AddToggle("AutoTSQuestToggle", {
+	Text = "Auto Retrieve Supplies",
+	Default = false,
+	Tooltip = "Auto TPs to each supply crate then delivers to Supplies_Circle"
+})
+Toggles.AutoTSQuestToggle:OnChanged(function()
+	getgenv().AutoTSQuest = Toggles.AutoTSQuestToggle.Value
+	if getgenv().AutoTSQuest then
+		Library:Notify({ Title = "TS Quest", Description = "AutoFarm disabled, TS Quest starting!", Time = 3 })
+		runTSQuest()
+	else
+		_tsQuestRunning = false
+		updateTSStatus("Idle")
+	end
+end)
+
+TSCratesGroup:AddSlider("TSPickupWaitSlider", {
+	Text = "Pickup Wait (seconds)",
+	Default = 2,
+	Min = 1,
+	Max = 8,
+	Rounding = 1,
+	Tooltip = "Wait x sec in supply"
+})
+
+-- ==========================================
+-- RIGHT GROUP : Manual TP Buttons
+-- ==========================================
+
+TSManualGroup:AddButton({
+	Text = "TP to Supply 1",
+	Func = function()
+		local s = getTSSupply(1)
+		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 1 not found!", Time = 3 }); return end
+		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 1", Time = 2 })
+	end,
+})
+
+TSManualGroup:AddButton({
+	Text = "TP to Supply 2",
+	Func = function()
+		local s = getTSSupply(2)
+		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 2 not found!", Time = 3 }); return end
+		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 2", Time = 2 })
+	end,
+})
+
+TSManualGroup:AddButton({
+	Text = "TP to Supply 3",
+	Func = function()
+		local s = getTSSupply(3)
+		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 3 not found!", Time = 3 }); return end
+		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 3", Time = 2 })
+	end,
+})
+
+TSManualGroup:AddButton({
+	Text = "TP to Supplies Circle",
+	Func = function()
+		local c = getSuppliesCircle()
+		if not c then Library:Notify({ Title = "TS Quest", Description = "Supplies_Circle not found!", Time = 3 }); return end
+		pcall(function() tpToPart(c, Vector3.new(0, 3, 0)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Circle", Time = 2 })
+	end,
+})
