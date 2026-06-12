@@ -1316,7 +1316,7 @@ local function setupAutoExecute()
 			repeat task.wait() until game:IsLoaded()
 			task.wait(5)
 			getgenv().AutoExec = false
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/Testing.lua"))()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/L-Lawliet-Hub/THUB/main/ins.lua"))()
 		]])
 	end
 end
@@ -1746,10 +1746,9 @@ local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch"
 local WavesFarmGroup = Tabs.Waves:AddLeftGroupbox("Waves Farm", "flame")
 local WavesSettingsGroup = Tabs.Waves:AddRightGroupbox("Features", "menu")
 
--- TS tab
+-- TS Quest
 local TSCratesGroup = TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
-local TSManualGroup = TSQuestTab:AddLeftGroupbox("Manual TP(Forest)", "navigation")
-
+local TSManualGroup = TSQuestTab:AddRightGroupbox("Manual TP", "navigation")
 
 
 -- Global tab
@@ -3902,11 +3901,15 @@ end
 
 sendLog()
 
+
+
 -- ==========================================
 -- AUTO TS QUEST TAB
 -- ==========================================
 
-
+local TSQuestTab = Window:AddTab("TS Quest", "package")
+local TSCratesGroup = TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
+local TSManualGroup = TSQuestTab:AddRightGroupbox("Manual TP", "navigation")
 
 getgenv().AutoTSQuest = false
 local _tsQuestRunning = false
@@ -4045,8 +4048,9 @@ TSCratesGroup:AddSlider("TSPickupWaitSlider", {
 	Min = 1,
 	Max = 8,
 	Rounding = 1,
-	Tooltip = "Wait x sec in supply"
+	Tooltip = "Wait x sec after picking"
 })
+
 
 -- ==========================================
 -- RIGHT GROUP : Manual TP Buttons
@@ -4091,4 +4095,3 @@ TSManualGroup:AddButton({
 		Library:Notify({ Title = "TS Quest", Description = "Teleported to Circle", Time = 2 })
 	end,
 })
-
