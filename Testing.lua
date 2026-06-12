@@ -124,6 +124,12 @@ getgenv().OpenSecondChest = false
 getgenv().DeleteMap = DropdownConfig.DeleteMap or false
 getgenv().AdminConfig = false
 getgenv().HideDamageText = false
+-- Market tab globals
+getgenv().AutoBuyBoosts = false
+getgenv().AutoUsePotions = false
+getgenv().AutoBuySpins = false
+getgenv().AutoBuyCrates = false
+getgenv().AutoOpenCratesEnabled = false
 if not isfile(returnCounterPath) then writefile(returnCounterPath, "0") end
 
 getgenv().CurrentStatusLabel = nil
@@ -1716,8 +1722,8 @@ local Tabs = {
 	Configs  = Window:AddTab("Configs", "settings-2"),
 	Upgrades = Window:AddTab("Upgrades", "trending-up"),
 	Waves    = Window:AddTab("Waves", "waves-horizontal"),
+	Market   = Window:AddTab("Market", "shopping-cart"),
 	Global   = Window:AddTab("Central",   "globe"),
-	Market = Window:AddTab("Market", "shopping-cart"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
 }
@@ -1746,10 +1752,12 @@ local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch"
 local WavesFarmGroup = Tabs.Waves:AddLeftGroupbox("Waves Farm", "flame")
 local WavesSettingsGroup = Tabs.Waves:AddRightGroupbox("Features", "menu")
 
--- Market tab groups
-local PotionsGroup = Tabs.Market:AddLeftGroupbox("Potions", "flask-conical")
-local SpinsGroup = Tabs.Market:AddLeftGroupbox("Spins", "refresh-cw")
-local CratesGroup = Tabs.Market:AddRightGroupbox("Crates", "package")
+-- Market tab
+local MarketBoostGroup      = Tabs.Market:AddLeftGroupbox("Boosts / Potions", "zap")
+local MarketSpinsGroup      = Tabs.Market:AddLeftGroupbox("Spins", "rotate-cw")
+local MarketCratesBuyGroup  = Tabs.Market:AddRightGroupbox("Buy Crates", "package")
+local MarketCratesOpenGroup = Tabs.Market:AddRightGroupbox("Open Crates", "gift")
+
 
 -- Global tab
 local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll", "shuffle")
@@ -3525,6 +3533,408 @@ WavesSettingsGroup:AddLabel("More Features Coming Soon")
 
 
 -- ==========================================
+-- MARKET TAB
+-- ==========================================
+
+local boostIndexMap = {
+    ["XP Boost [30m]"]   = 1,
+    ["XP Boost [1h]"]    = 2,
+    ["XP Boost [2h]"]    = 3,
+    ["Luck Boost [30m]"] = 4,
+    ["Luck Boost [1h]"]  = 5,
+    ["Luck Boost [2h]"]  = 6,
+    ["Gold Boost [30m]"] = 7,
+    ["Gold Boost [1h]"]  = 8,
+    ["Gold Boost [2h]"]  = 9,
+}
+
+local boostUseNames = {
+    ["XP Boost [30m]"]   = "2x XP Boost [30m]",
+    ["XP Boost [1h]"]    = "2x XP Boost [1h]",
+    ["XP Boost [2h]"]    = "2x XP Boost [2h]",
+    ["Luck Boost [30m]"] = "2x Luck Boost [30m]",
+    ["Luck Boost [1h]"]  = "2x Luck Boost [1h]",
+    ["Luck Boost [2h]"]  = "2x Luck Boost [2h]",
+    ["Gold Boost [30m]"] = "2x Gold Boost [30m]",
+    ["Gold Boost [1h]"]  = "2x Gold Boost [1h]",
+    ["Gold Boost [2h]"]  = "2x Gold Boost [2h]",
+}
+
+local marketBoostValues = {
+    "XP Boost [30m]", "XP Boost [1h]", "XP Boost [2h]",
+    "Luck Boost [30m]", "Luck Boost [1h]", "Luck Boost [2h]",
+    "Gold Boost [30m]", "Gold Boost [1h]", "Gold Boost [2h]",
+}
+
+local spinIndexMap = {
+    ["5 Spins"]   = 1,
+    ["25 Spins"]  = 2,
+    ["100 Spins"] = 3,
+    ["250 Spins"] = 4,
+    ["500 Spins"] = 5,
+}
+
+local crateNames = {"Scout Fashion [2]", "Anime All-Stars [5]", "Anime All-Stars [6]", "Blade Burst"}
+local crateBuyIndexMap = {
+    ["Scout Fashion [2]"]   = 1,
+    ["Anime All-Stars [5]"] = 2,
+    ["Anime All-Stars [6]"] = 3,
+    ["Blade Burst"]         = 4,
+}
+
+-- ==========================================
+-- MARKET TAB : Auto Buy Boosts
+-- ==========================================
+
+MarketBoostGroup:AddToggle("AutoBuyBoostsToggle", {
+    Text = "Auto Buy Boosts",
+    Default = false,
+    Tooltip = "Continuously buys selected boosts from the market"
+})
+Toggles.AutoBuyBoostsToggle:OnChanged(function()
+    getgenv().AutoBuyBoosts = Toggles.AutoBuyBoostsToggle.Value
+    if not getgenv().AutoBuyBoosts then return end
+    task.spawn(function()
+        while getgenv().AutoBuyBoosts do
+            local selected = Options.MarketBoostSelectDropdown.Value or {}
+            local amount = Options.MarketBoostAmountSlider.Value or 1
+            local boughtAny = false
+            for boostName, isActive in pairs(selected) do
+                if not isActive then continue end
+                local idx = boostIndexMap[boostName]
+                if not idx then continue end
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Market", "Buy", "1_Boosts", idx, amount)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    boughtAny = true
+                    Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. boostName, Time = 2 })
+                elseif ok and (result == nil or result == false) then
+                    Library:Notify({ Title = "Market", Description = "❌ " .. boostName .. " – not enough coins!", Time = 2 })
+                end
+                task.wait(0.5)
+            end
+            task.wait(boughtAny and 30 or 5)
+        end
+    end)
+end)
+
+MarketBoostGroup:AddDropdown("MarketBoostSelectDropdown", {
+    Values = marketBoostValues,
+    Default = {},
+    Multi = true,
+    Text = "Select Boosts to Buy",
+    Tooltip = "Pick which boosts to auto-purchase"
+})
+
+MarketBoostGroup:AddSlider("MarketBoostAmountSlider", {
+    Text = "Amount",
+    Default = 1,
+    Min = 1,
+    Max = 99,
+    Rounding = 0,
+})
+
+MarketBoostGroup:AddButton({
+    Text = "Buy Now",
+    Func = function()
+        task.spawn(function()
+            local selected = Options.MarketBoostSelectDropdown.Value or {}
+            local amount = Options.MarketBoostAmountSlider.Value or 1
+            local bought = 0
+            for boostName, isActive in pairs(selected) do
+                if not isActive then continue end
+                local idx = boostIndexMap[boostName]
+                if not idx then continue end
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Market", "Buy", "1_Boosts", idx, amount)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    bought = bought + 1
+                    Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. boostName, Time = 2 })
+                else
+                    Library:Notify({ Title = "Market", Description = "❌ " .. boostName .. " failed!", Time = 2 })
+                end
+                task.wait(0.3)
+            end
+            if bought == 0 then
+                Library:Notify({ Title = "Market", Description = "No boosts selected!", Time = 3 })
+            end
+        end)
+    end,
+    Tooltip = "Instantly buy selected boosts"
+})
+
+MarketBoostGroup:AddDivider()
+
+-- ==========================================
+-- MARKET TAB : Auto Use Potions
+-- ==========================================
+
+MarketBoostGroup:AddToggle("AutoUsePotionsToggle", {
+    Text = "Auto Use Potions",
+    Default = false,
+    Tooltip = "Auto uses selected boosts from inventory every 60s"
+})
+Toggles.AutoUsePotionsToggle:OnChanged(function()
+    getgenv().AutoUsePotions = Toggles.AutoUsePotionsToggle.Value
+    if not getgenv().AutoUsePotions then return end
+    task.spawn(function()
+        while getgenv().AutoUsePotions do
+            local selected = Options.MarketUsePotionDropdown.Value or {}
+            for boostName, isActive in pairs(selected) do
+                if not isActive then continue end
+                local invName = boostUseNames[boostName]
+                if not invName then continue end
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Inventory", "Item", invName)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    Library:Notify({ Title = "Potions", Description = "✅ Used " .. invName, Time = 2 })
+                end
+                task.wait(0.5)
+            end
+            task.wait(60)
+        end
+    end)
+end)
+
+MarketBoostGroup:AddDropdown("MarketUsePotionDropdown", {
+    Values = marketBoostValues,
+    Default = {},
+    Multi = true,
+    Text = "Potions to Auto Use",
+    Tooltip = "Select boosts to auto-use from inventory"
+})
+
+MarketBoostGroup:AddButton({
+    Text = "Use Potions Now",
+    Func = function()
+        task.spawn(function()
+            local selected = Options.MarketUsePotionDropdown.Value or {}
+            local used = 0
+            for boostName, isActive in pairs(selected) do
+                if not isActive then continue end
+                local invName = boostUseNames[boostName]
+                if not invName then continue end
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Inventory", "Item", invName)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    used = used + 1
+                    Library:Notify({ Title = "Potions", Description = "✅ Used " .. invName, Time = 2 })
+                end
+                task.wait(0.3)
+            end
+            if used == 0 then
+                Library:Notify({ Title = "Potions", Description = "None in inventory!", Time = 3 })
+            end
+        end)
+    end,
+    Tooltip = "Use selected potions from inventory instantly"
+})
+
+-- ==========================================
+-- MARKET TAB : Spins
+-- ==========================================
+
+MarketSpinsGroup:AddToggle("AutoBuySpinsToggle", {
+    Text = "Auto Buy Spins",
+    Default = false,
+    Tooltip = "Continuously buys selected spin pack from market"
+})
+Toggles.AutoBuySpinsToggle:OnChanged(function()
+    getgenv().AutoBuySpins = Toggles.AutoBuySpinsToggle.Value
+    if not getgenv().AutoBuySpins then return end
+    task.spawn(function()
+        while getgenv().AutoBuySpins do
+            local pack = Options.MarketSpinPackDropdown.Value
+            local amount = Options.MarketSpinAmountSlider.Value or 1
+            local idx = spinIndexMap[pack]
+            if idx then
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Market", "Buy", "Spins", idx, amount)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. pack, Time = 2 })
+                else
+                    Library:Notify({ Title = "Market", Description = "❌ Not enough coins!", Time = 2 })
+                end
+            end
+            task.wait(10)
+        end
+    end)
+end)
+
+MarketSpinsGroup:AddDropdown("MarketSpinPackDropdown", {
+    Values = {"5 Spins", "25 Spins", "100 Spins", "250 Spins", "500 Spins"},
+    Default = 1,
+    Multi = false,
+    Text = "Spin Pack",
+})
+
+MarketSpinsGroup:AddSlider("MarketSpinAmountSlider", {
+    Text = "Amount",
+    Default = 1,
+    Min = 1,
+    Max = 99,
+    Rounding = 0,
+})
+
+MarketSpinsGroup:AddButton({
+    Text = "Buy Spins Now",
+    Func = function()
+        task.spawn(function()
+            local pack = Options.MarketSpinPackDropdown.Value
+            local amount = Options.MarketSpinAmountSlider.Value or 1
+            local idx = spinIndexMap[pack]
+            if not idx then
+                Library:Notify({ Title = "Market", Description = "Select a spin pack!", Time = 3 })
+                return
+            end
+            local ok, result = pcall(function()
+                return getRemote:InvokeServer("S_Market", "Buy", "Spins", idx, amount)
+            end)
+            if ok and result ~= nil and result ~= false then
+                Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. pack, Time = 3 })
+            else
+                Library:Notify({ Title = "Market", Description = "❌ Buy failed! Not enough coins?", Time = 3 })
+            end
+        end)
+    end,
+    Tooltip = "Buy selected spin pack instantly"
+})
+
+-- ==========================================
+-- MARKET TAB : Buy Crates
+-- ==========================================
+
+MarketCratesBuyGroup:AddToggle("AutoBuyCratesToggle", {
+    Text = "Auto Buy Crates",
+    Default = false,
+    Tooltip = "Continuously buys selected crate from market"
+})
+Toggles.AutoBuyCratesToggle:OnChanged(function()
+    getgenv().AutoBuyCrates = Toggles.AutoBuyCratesToggle.Value
+    if not getgenv().AutoBuyCrates then return end
+    task.spawn(function()
+        while getgenv().AutoBuyCrates do
+            local crate = Options.MarketCrateBuyDropdown.Value
+            local amount = Options.MarketCrateAmountSlider.Value or 1
+            local idx = crateBuyIndexMap[crate]
+            if idx then
+                local ok, result = pcall(function()
+                    return getRemote:InvokeServer("S_Market", "Buy", "Crates", idx, amount)
+                end)
+                if ok and result ~= nil and result ~= false then
+                    Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. crate, Time = 2 })
+                else
+                    Library:Notify({ Title = "Market", Description = "❌ Not enough coins!", Time = 2 })
+                end
+            end
+            task.wait(10)
+        end
+    end)
+end)
+
+MarketCratesBuyGroup:AddDropdown("MarketCrateBuyDropdown", {
+    Values = crateNames,
+    Default = 1,
+    Multi = false,
+    Text = "Crate Type",
+})
+
+MarketCratesBuyGroup:AddSlider("MarketCrateAmountSlider", {
+    Text = "Amount",
+    Default = 1,
+    Min = 1,
+    Max = 99,
+    Rounding = 0,
+})
+
+MarketCratesBuyGroup:AddButton({
+    Text = "Buy Crate Now",
+    Func = function()
+        task.spawn(function()
+            local crate = Options.MarketCrateBuyDropdown.Value
+            local amount = Options.MarketCrateAmountSlider.Value or 1
+            local idx = crateBuyIndexMap[crate]
+            if not idx then
+                Library:Notify({ Title = "Market", Description = "Select a crate!", Time = 3 })
+                return
+            end
+            local ok, result = pcall(function()
+                return getRemote:InvokeServer("S_Market", "Buy", "Crates", idx, amount)
+            end)
+            if ok and result ~= nil and result ~= false then
+                Library:Notify({ Title = "Market", Description = "✅ Bought " .. amount .. "x " .. crate, Time = 3 })
+            else
+                Library:Notify({ Title = "Market", Description = "❌ Buy failed! Not enough coins?", Time = 3 })
+            end
+        end)
+    end,
+    Tooltip = "Buy selected crate instantly"
+})
+
+-- ==========================================
+-- MARKET TAB : Open Crates
+-- ==========================================
+
+MarketCratesOpenGroup:AddToggle("AutoOpenCratesToggle", {
+    Text = "Auto Open Crates",
+    Default = false,
+    Tooltip = "Continuously opens selected crate from inventory until none left"
+})
+Toggles.AutoOpenCratesToggle:OnChanged(function()
+    getgenv().AutoOpenCratesEnabled = Toggles.AutoOpenCratesToggle.Value
+    if not getgenv().AutoOpenCratesEnabled then return end
+    task.spawn(function()
+        while getgenv().AutoOpenCratesEnabled do
+            local crate = Options.MarketCrateOpenDropdown.Value
+            local ok, result = pcall(function()
+                return getRemote:InvokeServer("S_Inventory", "Crate", crate)
+            end)
+            if ok and result ~= nil and result ~= false then
+                Library:Notify({ Title = "Crates", Description = "✅ Opened: " .. crate, Time = 1.5 })
+                task.wait(0.8)
+            else
+                Library:Notify({ Title = "Crates", Description = "❌ " .. crate .. " – none left!", Time = 3 })
+                getgenv().AutoOpenCratesEnabled = false
+                Toggles.AutoOpenCratesToggle:SetValue(false)
+            end
+        end
+    end)
+end)
+
+MarketCratesOpenGroup:AddDropdown("MarketCrateOpenDropdown", {
+    Values = crateNames,
+    Default = 1,
+    Multi = false,
+    Text = "Crate to Open",
+})
+
+MarketCratesOpenGroup:AddButton({
+    Text = "Open One Crate",
+    Func = function()
+        task.spawn(function()
+            local crate = Options.MarketCrateOpenDropdown.Value
+            local ok, result = pcall(function()
+                return getRemote:InvokeServer("S_Inventory", "Crate", crate)
+            end)
+            if ok and result ~= nil and result ~= false then
+                Library:Notify({ Title = "Crates", Description = "✅ Opened: " .. crate, Time = 3 })
+            else
+                Library:Notify({ Title = "Crates", Description = "❌ No " .. crate .. " in inventory!", Time = 3 })
+            end
+        end)
+    end,
+    Tooltip = "Open one crate immediately"
+})
+
+MarketCratesOpenGroup:AddLabel("Auto open stops when inventory\nis empty. Buy more first!")
+
+
+-- ==========================================
 -- GLOBAL TAB : Slots
 -- ==========================================
 
@@ -3600,334 +4010,6 @@ SlotGroup:AddSlider("PrestigeGoldSlider", {
 	Min = 0,
 	Max = 100,
 	Rounding = 0,
-})
-
--- ==========================================
--- POTIONS (BOOSTS)
--- ==========================================
-
--- Boost Data
-local boostData = {
-    [1] = {name = "2x XP Boost [30m]", type = "XP"},
-    [2] = {name = "2x XP Boost [1h]", type = "XP"},
-    [3] = {name = "2x XP Boost [2h]", type = "XP"},
-    [4] = {name = "2x Luck Boost [30m]", type = "Luck"},
-    [5] = {name = "2x Luck Boost [1h]", type = "Luck"},
-    [6] = {name = "2x Luck Boost [2h]", type = "Luck"},
-    [7] = {name = "2x Gold Boost [30m]", type = "Gold"},
-    [8] = {name = "2x Gold Boost [1h]", type = "Gold"},
-    [9] = {name = "2x Gold Boost [2h]", type = "Gold"},
-}
-
--- Buy boost function
-local function buyBoost(boostId, amount)
-    local boost = boostData[boostId]
-    if not boost then return false end
-    
-    local ok, result = pcall(function()
-        return getRemote:InvokeServer("S_Market", "Buy", "1_Boosts", boostId, amount)
-    end)
-    
-    if ok and result ~= nil and result ~= false then
-        Library:Notify({ Title = "✅ Purchased!", Description = boost.name .. " x" .. amount, Time = 3 })
-        return true
-    else
-        Library:Notify({ Title = "❌ Failed!", Description = "Not enough currency", Time = 3 })
-        return false
-    end
-end
-
--- Auto Buy Potions
-getgenv().AutoBuyPotions = false
-
-PotionsGroup:AddToggle("AutoBuyPotionsToggle", {
-    Text = "Auto Buy Boosts",
-    Default = false,
-    Tooltip = "Auto buy boosts at interval"
-})
-Toggles.AutoBuyPotionsToggle:OnChanged(function()
-    getgenv().AutoBuyPotions = Toggles.AutoBuyPotionsToggle.Value
-    
-    if getgenv().AutoBuyPotions then
-        task.spawn(function()
-            while getgenv().AutoBuyPotions do
-                local boostId = Options.BuyBoostDropdown.Value or 3  -- Default XP 2h
-                local amount = Options.BuyBoostAmountSlider.Value or 1
-                buyBoost(boostId, amount)
-                task.wait(60)
-            end
-        end)
-    end
-end)
-
-PotionsGroup:AddDropdown("BuyBoostDropdown", {
-    Values = {"2x XP Boost [2h]", "2x XP Boost [1h]", "2x XP Boost [30m]", "2x Gold Boost [2h]", "2x Gold Boost [1h]", "2x Gold Boost [30m]", "2x Luck Boost [2h]", "2x Luck Boost [1h]", "2x Luck Boost [30m]"},
-    Default = 1,
-    Multi = false,
-    Text = "Select Boost",
-    Tooltip = "Which boost to buy"
-})
-
-PotionsGroup:AddSlider("BuyBoostAmountSlider", {
-    Text = "Amount to Buy",
-    Default = 1,
-    Min = 1,
-    Max = 50,
-    Rounding = 0,
-    Tooltip = "How many boosts to buy at once"
-})
-
--- Auto Use Potions
-getgenv().AutoUsePotions = false
-
-PotionsGroup:AddToggle("AutoUsePotionsToggle", {
-    Text = "Auto Use Boosts",
-    Default = false,
-    Tooltip = "Auto use boosts from inventory"
-})
-Toggles.AutoUsePotionsToggle:OnChanged(function()
-    getgenv().AutoUsePotions = Toggles.AutoUsePotionsToggle.Value
-    
-    if getgenv().AutoUsePotions then
-        task.spawn(function()
-            while getgenv().AutoUsePotions do
-                pcall(function()
-                    local boostsToUse = {"2x XP Boost [2h]", "2x XP Boost [1h]", "2x XP Boost [30m]", "2x Gold Boost [2h]", "2x Gold Boost [1h]", "2x Gold Boost [30m]", "2x Luck Boost [2h]", "2x Luck Boost [1h]", "2x Luck Boost [30m]"}
-                    for _, boost in ipairs(boostsToUse) do
-                        getRemote:InvokeServer("S_Inventory", "Item", boost)
-                        task.wait(0.3)
-                    end
-                end)
-                task.wait(30)
-            end
-        end)
-    end
-end)
-
--- Quick Buy Buttons
-PotionsGroup:AddDivider()
-PotionsGroup:AddLabel("Quick Buy")
-
-PotionsGroup:AddButton({
-    Text = "Buy XP [2h] x5",
-    Func = function() buyBoost(3, 5) end
-})
-
-PotionsGroup:AddButton({
-    Text = "Buy Gold [2h] x5",
-    Func = function() buyBoost(9, 5) end
-})
-
-PotionsGroup:AddButton({
-    Text = "Buy Luck [2h] x5",
-    Func = function() buyBoost(6, 5) end
-})
-
--- ==========================================
--- SPINS
--- ==========================================
-
-local spinData = {
-    [1] = {name = "5 Spins", amount = 5},
-    [2] = {name = "25 Spins", amount = 25},
-    [3] = {name = "100 Spins", amount = 100},
-    [4] = {name = "250 Spins", amount = 250},
-    [5] = {name = "500 Spins", amount = 500},
-}
-
-local function buySpins(spinId, amount)
-    local spin = spinData[spinId]
-    if not spin then return false end
-    
-    local ok, result = pcall(function()
-        return getRemote:InvokeServer("S_Market", "Buy", "Spins", spinId, amount)
-    end)
-    
-    if ok and result ~= nil and result ~= false then
-        Library:Notify({ Title = "✅ Purchased!", Description = spin.name .. " x" .. amount, Time = 3 })
-        return true
-    else
-        Library:Notify({ Title = "❌ Failed!", Description = "Not enough gems", Time = 3 })
-        return false
-    end
-end
-
--- Auto Buy Spins
-getgenv().AutoBuySpins = false
-
-SpinsGroup:AddToggle("AutoBuySpinsToggle", {
-    Text = "Auto Buy Spins",
-    Default = false,
-    Tooltip = "Auto buy spins at interval"
-})
-Toggles.AutoBuySpinsToggle:OnChanged(function()
-    getgenv().AutoBuySpins = Toggles.AutoBuySpinsToggle.Value
-    
-    if getgenv().AutoBuySpins then
-        task.spawn(function()
-            while getgenv().AutoBuySpins do
-                local spinId = Options.BuySpinDropdown.Value or 3  -- Default 100 Spins
-                local amount = Options.BuySpinAmountSlider.Value or 1
-                buySpins(spinId, amount)
-                task.wait(60)
-            end
-        end)
-    end
-end)
-
-SpinsGroup:AddDropdown("BuySpinDropdown", {
-    Values = {"500 Spins", "250 Spins", "100 Spins", "25 Spins", "5 Spins"},
-    Default = 3,
-    Multi = false,
-    Text = "Select Spins",
-    Tooltip = "Which spin pack to buy"
-})
-
-SpinsGroup:AddSlider("BuySpinAmountSlider", {
-    Text = "Amount to Buy",
-    Default = 1,
-    Min = 1,
-    Max = 10,
-    Rounding = 0,
-    Tooltip = "How many packs to buy"
-})
-
--- Quick Buy
-SpinsGroup:AddButton({
-    Text = "Buy 500 Spins",
-    Func = function() buySpins(5, 1) end
-})
-
-SpinsGroup:AddButton({
-    Text = "Buy 100 Spins",
-    Func = function() buySpins(3, 1) end
-})
-
--- ==========================================
--- CRATES
--- ==========================================
-
-local crateData = {
-    {id = 1, name = "Scout Fashion [2]"},
-    {id = 2, name = "Anime All-Stars [5]"},
-    {id = 3, name = "Anime All-Stars [6]"},
-    {id = 4, name = "Blade Burst [2]"},
-}
-
--- Buy Crate
-local function buyCrate(crateNum, amount)
-    local crate = crateData[crateNum]
-    if not crate then return false end
-    
-    local ok, result = pcall(function()
-        return getRemote:InvokeServer("S_Market", "Buy", "Crates", crate.id, amount)
-    end)
-    
-    if ok and result ~= nil and result ~= false then
-        Library:Notify({ Title = "✅ Purchased!", Description = crate.name .. " x" .. amount, Time = 3 })
-        return true
-    else
-        Library:Notify({ Title = "❌ Failed!", Description = "Not enough currency", Time = 3 })
-        return false
-    end
-end
-
--- Open Crate
-local function openCrate(crateName)
-    local ok, result = pcall(function()
-        return getRemote:InvokeServer("S_Inventory", "Crate", crateName)
-    end)
-    
-    if ok and result ~= nil and result ~= false then
-        Library:Notify({ Title = "📦 Opened!", Description = crateName, Time = 3 })
-        return true
-    else
-        Library:Notify({ Title = "❌ Failed!", Description = "Could not open " .. crateName, Time = 3 })
-        return false
-    end
-end
-
--- Auto Buy Crates
-getgenv().AutoBuyCrates = false
-
-CratesGroup:AddToggle("AutoBuyCratesToggle", {
-    Text = "Auto Buy Crates",
-    Default = false,
-    Tooltip = "Auto buy crates at interval"
-})
-Toggles.AutoBuyCratesToggle:OnChanged(function()
-    getgenv().AutoBuyCrates = Toggles.AutoBuyCratesToggle.Value
-    
-    if getgenv().AutoBuyCrates then
-        task.spawn(function()
-            while getgenv().AutoBuyCrates do
-                local crateNum = Options.BuyCrateDropdown.Value or 1
-                local amount = Options.BuyCrateAmountSlider.Value or 1
-                buyCrate(crateNum, amount)
-                task.wait(60)
-            end
-        end)
-    end
-end)
-
-CratesGroup:AddDropdown("BuyCrateDropdown", {
-    Values = {"Scout Fashion [2]", "Anime All-Stars [5]", "Anime All-Stars [6]", "Blade Burst [2]"},
-    Default = 1,
-    Multi = false,
-    Text = "Select Crate",
-    Tooltip = "Which crate to buy"
-})
-
-CratesGroup:AddSlider("BuyCrateAmountSlider", {
-    Text = "Amount to Buy",
-    Default = 1,
-    Min = 1,
-    Max = 50,
-    Rounding = 0,
-    Tooltip = "How many crates to buy"
-})
-
--- Auto Open Crates
-getgenv().AutoOpenCrates = false
-
-CratesGroup:AddToggle("AutoOpenCratesToggle", {
-    Text = "Auto Open Crates",
-    Default = false,
-    Tooltip = "Auto open all crates in inventory"
-})
-Toggles.AutoOpenCratesToggle:OnChanged(function()
-    getgenv().AutoOpenCrates = Toggles.AutoOpenCratesToggle.Value
-    
-    if getgenv().AutoOpenCrates then
-        task.spawn(function()
-            while getgenv().AutoOpenCrates do
-                for _, crate in ipairs(crateData) do
-                    openCrate(crate.name)
-                    task.wait(1)
-                end
-                task.wait(10)
-            end
-        end)
-    end
-end)
-
--- Quick Buttons
-CratesGroup:AddDivider()
-CratesGroup:AddLabel("Quick Actions")
-
-CratesGroup:AddButton({
-    Text = "Buy Scout Fashion x5",
-    Func = function() buyCrate(1, 5) end
-})
-
-CratesGroup:AddButton({
-    Text = "Open All Crates",
-    Func = function()
-        for _, crate in ipairs(crateData) do
-            openCrate(crate.name)
-            task.wait(0.5)
-        end
-    end
 })
 
 -- ==========================================
