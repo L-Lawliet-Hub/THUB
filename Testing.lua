@@ -1716,6 +1716,7 @@ local Tabs = {
 	Configs  = Window:AddTab("Configs", "settings-2"),
 	Upgrades = Window:AddTab("Upgrades", "trending-up"),
 	Waves    = Window:AddTab("Waves", "waves-horizontal"),
+	TSQuestTab = Window:AddTab("TS Quest", "package")
 	Global   = Window:AddTab("Central",   "globe"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
@@ -4285,7 +4286,7 @@ end
 TSWatchTowerGroup:AddToggle("AutoWatchTowerToggle", {
 	Text = "Auto Create Watch Towers",
 	Default = false,
-	Tooltip = "Tower 1 → 2 → 3 order mein titans maarta reh jab tak pura na ho"
+	Tooltip = "Auto create Watch Towers in Outskirts"
 })
 Toggles.AutoWatchTowerToggle:OnChanged(function()
 	getgenv().AutoWatchTower = Toggles.AutoWatchTowerToggle.Value
@@ -4308,7 +4309,7 @@ TSWatchTowerGroup:AddSlider("WTFarmRangeSlider", {
 	Min = 100,
 	Max = 800,
 	Rounding = 0,
-	Tooltip = "Watchtower ke kitne range mein titans dhundhe"
+	Tooltip = "kills titans in x range"
 })
 
 TSWatchTowerGroup:AddDivider()
