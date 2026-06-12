@@ -1755,7 +1755,8 @@ local WavesSettingsGroup = Tabs.Waves:AddRightGroupbox("Features", "menu")
 
 -- ts
 local TSCratesGroup = Tabs.TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
-local TSManualGroup = Tabs.TSQuestTab:AddRightGroupbox("Manual TP", "navigation")
+local TSManualGroup = Tabs.TSQuestTab:AddLeftGroupbox("Manual TP", "navigation")
+local TSWatchTowerGroup = Tabs.TSQuestTab:AddRightGroupbox("Watch Towers (Outskirts)", "shield")
 
 -- Market tab
 local MarketBoostGroup      = Tabs.Market:AddLeftGroupbox("Boosts / Potions", "zap")
@@ -3537,7 +3538,7 @@ WavesFarmGroup:AddLabel("More Features Coming Soon")
 WavesSettingsGroup:AddLabel("More Features Coming Soon")
 
 -- ==========================================
--- AUTO TS QUEST TAB (HOVER MOVEMENT)
+-- AUTO TS QUEST TAB
 -- ==========================================
 
 
@@ -3550,64 +3551,34 @@ local tsQuestStatusLabel = TSCratesGroup:AddLabel("Status: Idle")
 -- ==========================================
 
 local function getTSSupply(index)
-    local unclimbable = workspace:FindFirstChild("Unclimbable")
-    if not unclimbable then return nil end
-    return unclimbable:FindFirstChild("ThunderSpear_Supplies" .. index)
+	local unclimbable = workspace:FindFirstChild("Unclimbable")
+	if not unclimbable then return nil end
+	return unclimbable:FindFirstChild("ThunderSpear_Supplies" .. index)
 end
 
 local function getSuppliesCircle()
-    local unclimbable = workspace:FindFirstChild("Unclimbable")
-    if not unclimbable then return nil end
-    return unclimbable:FindFirstChild("Supplies_Circle")
+	local unclimbable = workspace:FindFirstChild("Unclimbable")
+	if not unclimbable then return nil end
+	return unclimbable:FindFirstChild("Supplies_Circle")
 end
 
--- ✅ HOVER MOVEMENT function
-local function hoverToPart(part, offset)
-    local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    if not root or not part then return false end
-    
-    offset = offset or Vector3.new(0, 3, 4)
-    local targetPos
-    
-    if part:IsA("BasePart") then
-        targetPos = (part.CFrame * CFrame.new(offset)).Position
-    elseif part:IsA("Model") then
-        local primary = part.PrimaryPart or part:FindFirstChildWhichIsA("BasePart")
-        if primary then
-            targetPos = (primary.CFrame * CFrame.new(offset)).Position
-        end
-    end
-    
-    if targetPos then
-        local speed = Options.TSHoverSpeedSlider and Options.TSHoverSpeedSlider.Value or 300
-        
-        -- Hover to target
-        local startTime = os.clock()
-        local timeout = 10 -- Max 10 seconds
-        
-        while os.clock() - startTime < timeout do
-            if not getgenv().AutoTSQuest then break end
-            
-            local currentPos = root.Position
-            local distance = (targetPos - currentPos).Magnitude
-            
-            if distance < 5 then break end -- Reached
-            
-            local direction = (targetPos - currentPos).Unit
-            root.AssemblyLinearVelocity = direction * speed
-            
-            task.wait(0.1)
-        end
-        
-        -- Stop movement
-        root.AssemblyLinearVelocity = Vector3.zero
-        return true
-    end
-    return false
+local function tpToPart(part, offset)
+	local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+	if not root or not part then return false end
+	offset = offset or Vector3.new(0, 3, 4)
+	if part:IsA("BasePart") then
+		root.CFrame = part.CFrame * CFrame.new(offset)
+	elseif part:IsA("Model") then
+		local primary = part.PrimaryPart or part:FindFirstChildWhichIsA("BasePart")
+		if primary then
+			root.CFrame = primary.CFrame * CFrame.new(offset)
+		end
+	end
+	return true
 end
 
 local function updateTSStatus(text)
-    pcall(function() tsQuestStatusLabel:SetText("Status: " .. text) end)
+	pcall(function() tsQuestStatusLabel:SetText("Status: " .. text) end)
 end
 
 -- ==========================================
@@ -3615,74 +3586,71 @@ end
 -- ==========================================
 
 local function runTSQuest()
-    if _tsQuestRunning then return end
-    _tsQuestRunning = true
+	if _tsQuestRunning then return end
+	_tsQuestRunning = true
 
-    task.spawn(function()
-        -- Stop AutoFarm
-        if AutoFarm._running then
-            AutoFarm:Stop()
-        end
-        if Toggles.AutoKillToggle and Toggles.AutoKillToggle.Value then
-            Toggles.AutoKillToggle:SetValue(false)
-        end
+	task.spawn(function()
+		-- AutoFarm band karo
+		if AutoFarm._running then
+			AutoFarm:Stop()
+		end
+		if Toggles.AutoKillToggle.Value then
+			Toggles.AutoKillToggle:SetValue(false)
+		end
 
-        updateTSStatus("Starting...")
-        task.wait(1)
+		updateTSStatus("Starting...")
+		task.wait(1)
 
-        while getgenv().AutoTSQuest do
-            local circle = getSuppliesCircle()
-            if not circle then
-                updateTSStatus("Supplies_Circle not found!")
-                task.wait(2)
-                continue
-            end
+		while getgenv().AutoTSQuest do
+			local circle = getSuppliesCircle()
+			if not circle then
+				updateTSStatus("Supplies_Circle not found!")
+				task.wait(2)
+				continue
+			end
 
-            local foundAny = false
+			local foundAny = false
 
-            for i = 1, 3 do
-                if not getgenv().AutoTSQuest then break end
+			for i = 1, 3 do
+				if not getgenv().AutoTSQuest then break end
 
-                local supply = getTSSupply(i)
-                if not supply or not supply.Parent then continue end
+				local supply = getTSSupply(i)
+				if not supply or not supply.Parent then continue end
 
-                foundAny = true
-                local waitSecs = Options.TSPickupWaitSlider.Value
+				foundAny = true
+				local waitSecs = Options.TSPickupWaitSlider.Value
 
-                -- Step 1: Hover to supply
-                updateTSStatus("Going to Supply " .. i .. "...")
-                Library:Notify({ Title = "📦 TS Quest", Description = "Flying to Supply " .. i, Time = 2 })
-                pcall(function() hoverToPart(supply, Vector3.new(0, 3, 3)) end)
-                task.wait(waitSecs)
+				-- Step 1: TP to supply
+				updateTSStatus("Going to Supply " .. i .. "...")
+				pcall(function() tpToPart(supply, Vector3.new(0, 3, 3)) end)
+				task.wait(waitSecs)
 
-                if not getgenv().AutoTSQuest then break end
+				if not getgenv().AutoTSQuest then break end
 
-                -- Step 2: Hover to circle
-                updateTSStatus("Delivering Supply " .. i .. "...")
-                Library:Notify({ Title = "🎯 TS Quest", Description = "Delivering Supply " .. i, Time = 2 })
-                pcall(function() hoverToPart(circle, Vector3.new(0, 3, 0)) end)
-                task.wait(2)
-            end
+				-- Step 2: Deliver to circle
+				updateTSStatus("Delivering Supply " .. i .. "...")
+				pcall(function() tpToPart(circle, Vector3.new(0, 3, 0)) end)
+				task.wait(2)
+			end
 
-            -- Check remaining
-            local remaining = 0
-            for i = 1, 3 do
-                if getTSSupply(i) then remaining = remaining + 1 end
-            end
+			-- Check remaining
+			local remaining = 0
+			for i = 1, 3 do
+				if getTSSupply(i) then remaining += 1 end
+			end
 
-            if not foundAny or remaining == 0 then
-                updateTSStatus("All Delivered! ✅")
-                Library:Notify({ Title = "✅ TS Quest", Description = "All 3 supplies delivered!", Time = 5 })
-                task.wait(3)
-            else
-                updateTSStatus("Remaining: " .. remaining)
-                task.wait(1)
-            end
-        end
+			if not foundAny or remaining == 0 then
+				updateTSStatus("All Delivered! ✅")
+				Library:Notify({ Title = "TS Quest", Description = "All 3 supplies retrieved!", Time = 5 })
+				task.wait(3)
+			else
+				task.wait(1)
+			end
+		end
 
-        updateTSStatus("Idle")
-        _tsQuestRunning = false
-    end)
+		updateTSStatus("Idle")
+		_tsQuestRunning = false
+	end)
 end
 
 -- ==========================================
@@ -3690,92 +3658,127 @@ end
 -- ==========================================
 
 TSCratesGroup:AddToggle("AutoTSQuestToggle", {
-    Text = "Auto Retrieve Supplies",
-    Default = false,
-    Tooltip = "Auto flies to each supply crate then delivers to Supplies_Circle"
+	Text = "Auto Retrieve Supplies",
+	Default = false,
+	Tooltip = "Auto TPs to each supply crate then delivers to Supplies_Circle"
 })
 Toggles.AutoTSQuestToggle:OnChanged(function()
-    getgenv().AutoTSQuest = Toggles.AutoTSQuestToggle.Value
-    if getgenv().AutoTSQuest then
-        Library:Notify({ Title = "🏗️ TS Quest", Description = "AutoFarm disabled, TS Quest starting!", Time = 3 })
-        runTSQuest()
-    else
-        _tsQuestRunning = false
-        updateTSStatus("Idle")
-    end
+	getgenv().AutoTSQuest = Toggles.AutoTSQuestToggle.Value
+	if getgenv().AutoTSQuest then
+		Library:Notify({ Title = "TS Quest", Description = "AutoFarm disabled, TS Quest starting!", Time = 3 })
+		runTSQuest()
+	else
+		_tsQuestRunning = false
+		updateTSStatus("Idle")
+	end
 end)
 
 TSCratesGroup:AddSlider("TSPickupWaitSlider", {
-    Text = "Pickup Wait (seconds)",
-    Default = 2,
-    Min = 1,
-    Max = 8,
-    Rounding = 1,
-    Tooltip = "Wait x sec after collecting supply"
+	Text = "Pickup Wait (seconds)",
+	Default = 4,
+	Min = 1,
+	Max = 8,
+	Rounding = 1,
+	Tooltip = "Wait x sec after collecting the supply!"
 })
-
-TSCratesGroup:AddSlider("TSHoverSpeedSlider", {
-    Text = "Hover Speed",
-    Default = 300,
-    Min = 100,
-    Max = 600,
-    Rounding = 0,
-    Tooltip = "Movement speed when flying to supplies"
-})
-
 
 
 -- ==========================================
--- RIGHT GROUP : Manual Hover Buttons
+-- RIGHT GROUP : Manual TP Buttons
 -- ==========================================
 
-TSManualGroup:AddLabel("Supply Crates (Hover)")
-
 TSManualGroup:AddButton({
-    Text = "Fly to Supply 1",
-    Func = function()
-        local s = getTSSupply(1)
-        if not s then Library:Notify({ Title = "❌ Not Found", Description = "Supply 1 not found!", Time = 3 }); return end
-        Library:Notify({ Title = "✈️ Flying", Description = "Supply 1", Time = 2 })
-        pcall(function() hoverToPart(s, Vector3.new(0, 3, 4)) end)
-    end,
-    Tooltip = "Hover to ThunderSpear_Supplies1"
+	Text = "TP to Supply 1",
+	Func = function()
+		local s = getTSSupply(1)
+		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 1 not found!", Time = 3 }); return end
+		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 1", Time = 2 })
+	end,
 })
 
 TSManualGroup:AddButton({
-    Text = "Fly to Supply 2",
-    Func = function()
-        local s = getTSSupply(2)
-        if not s then Library:Notify({ Title = "❌ Not Found", Description = "Supply 2 not found!", Time = 3 }); return end
-        Library:Notify({ Title = "✈️ Flying", Description = "Supply 2", Time = 2 })
-        pcall(function() hoverToPart(s, Vector3.new(0, 3, 4)) end)
-    end,
-    Tooltip = "Hover to ThunderSpear_Supplies2"
+	Text = "TP to Supply 2",
+	Func = function()
+		local s = getTSSupply(2)
+		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 2 not found!", Time = 3 }); return end
+		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 2", Time = 2 })
+	end,
 })
 
 TSManualGroup:AddButton({
-    Text = "Fly to Supply 3",
-    Func = function()
-        local s = getTSSupply(3)
-        if not s then Library:Notify({ Title = "❌ Not Found", Description = "Supply 3 not found!", Time = 3 }); return end
-        Library:Notify({ Title = "✈️ Flying", Description = "Supply 3", Time = 2 })
-        pcall(function() hoverToPart(s, Vector3.new(0, 3, 4)) end)
-    end,
-    Tooltip = "Hover to ThunderSpear_Supplies3"
+	Text = "TP to Supply 3",
+	Func = function()
+		local s = getTSSupply(3)
+		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 3 not found!", Time = 3 }); return end
+		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 3", Time = 2 })
+	end,
 })
 
-TSManualGroup:AddDivider()
-TSManualGroup:AddLabel("Delivery Point (Hover)")
-
 TSManualGroup:AddButton({
-    Text = "Fly to Supplies Circle",
-    Func = function()
-        local c = getSuppliesCircle()
-        if not c then Library:Notify({ Title = "❌ Not Found", Description = "Supplies_Circle not found!", Time = 3 }); return end
-        Library:Notify({ Title = "✈️ Flying", Description = "Supplies Circle", Time = 2 })
-        pcall(function() hoverToPart(c, Vector3.new(0, 3, 0)) end)
-    end,
-    Tooltip = "Hover to Supplies_Circle"
+	Text = "TP to Supplies Circle",
+	Func = function()
+		local c = getSuppliesCircle()
+		if not c then Library:Notify({ Title = "TS Quest", Description = "Supplies_Circle not found!", Time = 3 }); return end
+		pcall(function() tpToPart(c, Vector3.new(0, 3, 0)) end)
+		Library:Notify({ Title = "TS Quest", Description = "Teleported to Circle", Time = 2 })
+	end,
+})
+
+-- ==========================================
+-- WATCH TOWERS (OUTSKIRTS) - RIGHT GROUPBOX
+-- ==========================================
+
+local TSWatchTowerGroup = TSQuestTab:AddRightGroupbox("Watch Towers (Outskirts)", "shield")
+
+local function getWatchTower(index)
+    return workspace:FindFirstChild("WatchTower_" .. index)
+end
+
+local function tpToWatchTower(index)
+    local wt = getWatchTower(index)
+    if not wt then
+        Library:Notify({ Title = "❌ Not Found", Description = "WatchTower_" .. index .. " not found!", Time = 3 })
+        return
+    end
+    
+    local pos = nil
+    if wt:IsA("BasePart") then
+        pos = wt.Position
+    elseif wt:IsA("Model") then
+        local primary = wt.PrimaryPart or wt:FindFirstChildWhichIsA("BasePart")
+        if primary then pos = primary.Position end
+    end
+    
+    if pos then
+        local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
+            Library:Notify({ Title = "📍 Teleported", Description = "Watch Tower " .. index, Time = 2 })
+        end
+    end
+end
+
+TSWatchTowerGroup:AddLabel("Manual Teleport")
+
+TSWatchTowerGroup:AddButton({
+    Text = "TP to Watch Tower 1",
+    Func = function() tpToWatchTower(1) end,
+    Tooltip = "Teleport to WatchTower_1"
+})
+
+TSWatchTowerGroup:AddButton({
+    Text = "TP to Watch Tower 2",
+    Func = function() tpToWatchTower(2) end,
+    Tooltip = "Teleport to WatchTower_2"
+})
+
+TSWatchTowerGroup:AddButton({
+    Text = "TP to Watch Tower 3",
+    Func = function() tpToWatchTower(3) end,
+    Tooltip = "Teleport to WatchTower_3"
 })
 
 
