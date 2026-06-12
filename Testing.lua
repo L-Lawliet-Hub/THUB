@@ -1746,6 +1746,11 @@ local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch"
 local WavesFarmGroup = Tabs.Waves:AddLeftGroupbox("Waves Farm", "flame")
 local WavesSettingsGroup = Tabs.Waves:AddRightGroupbox("Features", "menu")
 
+-- TS tab
+local TSCratesGroup = TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
+local TSManualGroup = TSQuestTab:AddLeftGroupbox("Manual TP(Forest)", "navigation")
+local TSWatchTowerGroup = TSQuestTab:AddRightGroupbox("Watch Towers (Outskirts)", "shield")
+
 
 -- Global tab
 local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll", "shuffle")
@@ -3901,9 +3906,7 @@ sendLog()
 -- AUTO TS QUEST TAB
 -- ==========================================
 
-local TSCratesGroup = TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
-local TSManualGroup = TSQuestTab:AddLeftGroupbox("Manual TP(Forest)", "navigation")
-local TSWatchTowerGroup = TSQuestTab:AddRightGroupbox("Watch Towers (Outskirts)", "shield")
+
 
 getgenv().AutoTSQuest = false
 local _tsQuestRunning = false
