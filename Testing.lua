@@ -3731,8 +3731,6 @@ TSManualGroup:AddButton({
 -- WATCH TOWERS (OUTSKIRTS) - RIGHT GROUPBOX
 -- ==========================================
 
-local TSWatchTowerGroup = TSQuestTab:AddRightGroupbox("Watch Towers (Outskirts)", "shield")
-
 local function getWatchTower(index)
     return workspace:FindFirstChild("WatchTower_" .. index)
 end
