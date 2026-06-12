@@ -1754,8 +1754,8 @@ local WavesFarmGroup = Tabs.Waves:AddLeftGroupbox("Waves Farm", "flame")
 local WavesSettingsGroup = Tabs.Waves:AddRightGroupbox("Features", "menu")
 
 -- ts
-local TSCratesGroup = TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
-local TSManualGroup = TSQuestTab:AddRightGroupbox("Manual TP", "navigation")
+local TSCratesGroup = Tabs.TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
+local TSManualGroup = Tabs.TSQuestTab:AddRightGroupbox("Manual TP", "navigation")
 
 -- Market tab
 local MarketBoostGroup      = Tabs.Market:AddLeftGroupbox("Boosts / Potions", "zap")
