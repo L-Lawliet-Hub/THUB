@@ -3579,7 +3579,8 @@ local crateBuyIndexMap = {
     ["Scout Fashion [2]"]   = 1,
     ["Anime All-Stars [5]"] = 2,
     ["Anime All-Stars [6]"] = 3,
-    ["Blade Burst"]         = 4,
+	
+    ["Blade Burst [2]"]     = 4,
 }
 
 -- ==========================================
