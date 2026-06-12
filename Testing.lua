@@ -3574,7 +3574,7 @@ local spinIndexMap = {
     ["500 Spins"] = 5,
 }
 
-local crateNames = {"Scout Fashion [2]", "Anime All-Stars [5]", "Anime All-Stars [6]", "Blade Burst"}
+local crateNames = {"Scout Fashion [2]", "Anime All-Stars [5]", "Anime All-Stars [6]", "Blade Burst [2]"}
 local crateBuyIndexMap = {
     ["Scout Fashion [2]"]   = 1,
     ["Anime All-Stars [5]"] = 2,
