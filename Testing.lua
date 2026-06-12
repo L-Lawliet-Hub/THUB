@@ -3902,7 +3902,8 @@ sendLog()
 
 local TSQuestTab = Window:AddTab("TS Quest", "package")
 local TSCratesGroup = TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
-local TSManualGroup = TSQuestTab:AddRightGroupbox("Manual TP", "navigation")
+local TSManualGroup = TSQuestTab:AddLeftGroupbox("Manual TP(Forest)", "navigation")
+local TSWatchTowerGroup = TSQuestTab:AddRightGroupbox("Watch Towers (Outskirts)", "shield")
 
 getgenv().AutoTSQuest = false
 local _tsQuestRunning = false
@@ -4085,5 +4086,272 @@ TSManualGroup:AddButton({
 		if not c then Library:Notify({ Title = "TS Quest", Description = "Supplies_Circle not found!", Time = 3 }); return end
 		pcall(function() tpToPart(c, Vector3.new(0, 3, 0)) end)
 		Library:Notify({ Title = "TS Quest", Description = "Teleported to Circle", Time = 2 })
+	end,
+})
+
+getgenv().AutoWatchTower = false
+local _wtRunning = false
+local wtStatusLabel = TSWatchTowerGroup:AddLabel("Status: Idle")
+
+local function updateWTStatus(text)
+	pcall(function() wtStatusLabel:SetText("Status: " .. text) end)
+end
+
+local function getWatchTower(index)
+	return workspace:FindFirstChild("WatchTower_" .. index)
+end
+
+local function isWatchTowerDone(index)
+	-- Tower disappear ho jaye ya Complete attribute mile toh done
+	local wt = getWatchTower(index)
+	if not wt then return true end -- disappeared = done
+	if wt:GetAttribute("Complete") == true then return true end
+	if wt:GetAttribute("Built") == true then return true end
+	if wt:GetAttribute("Done") == true then return true end
+	return false
+end
+
+local function getWatchTowerPosition(index)
+	local wt = getWatchTower(index)
+	if not wt then return nil end
+	if wt:IsA("BasePart") then
+		return wt.Position
+	elseif wt:IsA("Model") then
+		local primary = wt.PrimaryPart or wt:FindFirstChildWhichIsA("BasePart")
+		if primary then return primary.Position end
+	end
+	return nil
+end
+
+local function farmNearWatchTower(wtPos, wtIndex)
+	-- Titans ke napes dhundo near watchtower
+	local titansFolder = workspace:FindFirstChild("Titans")
+	if not titansFolder then return end
+
+	local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+
+	local farmRange = Options.WTFarmRangeSlider.Value
+	local farmRangeSq = farmRange * farmRange
+
+	local closestNape, closestDist = nil, math.huge
+
+	for _, titan in ipairs(titansFolder:GetChildren()) do
+		if titan:GetAttribute("Killed") or titan:GetAttribute("Dead") then continue end
+		local hit = titan:FindFirstChild("Hitboxes") and titan.Hitboxes:FindFirstChild("Hit")
+		if not hit then continue end
+		local nape = hit:FindFirstChild("Nape")
+		if not nape then continue end
+
+		local fake = titan:FindFirstChild("Fake")
+		if fake and fake:FindFirstChild("Collision") and not fake.Collision.CanCollide then continue end
+
+		-- Only titans near THIS watchtower
+		local dx = wtPos.X - nape.Position.X
+		local dz = wtPos.Z - nape.Position.Z
+		local d = dx*dx + dz*dz
+		if d < farmRangeSq and d < closestDist then
+			closestDist = d
+			closestNape = nape
+		end
+	end
+
+	if closestNape then
+		-- TP above nape
+		local heightOffset = 200
+		root.AssemblyLinearVelocity = V3_ZERO
+		root.CFrame = CFrame.new(closestNape.Position + Vector3.new(0, heightOffset, 0))
+
+		-- Attack
+		local slotIndex = lp:GetAttribute("Slot")
+		local slotData = slotIndex and mapData and mapData.Slots and mapData.Slots[slotIndex]
+
+		if slotData and slotData.Weapon == "Blades" then
+			postRemote:FireServer("Attacks", "Slash", true)
+			postRemote:FireServer("Hitboxes", "Register", closestNape, math.random(625, 850))
+		else
+			-- Spears
+			local spearsLabel = PlayerGui.Interface.HUD.Main.Top["7"].Spears.Spears
+			local currentAmmo = tonumber(string.match(spearsLabel.Text, "(%d+)"))
+			if currentAmmo and currentAmmo > 0 then
+				getRemote:InvokeServer("Spears", "S_Fire", tostring(currentAmmo))
+				for j = 1, 3 do
+					postRemote:FireServer("Spears", "S_Explode", closestNape.Position)
+				end
+			end
+		end
+	else
+		-- Koi titan nearby nahi, watchtower ke paas hi raho
+		root.CFrame = CFrame.new(wtPos + Vector3.new(0, 5, 0))
+	end
+end
+
+local function runWatchTowerAuto()
+	if _wtRunning then return end
+	_wtRunning = true
+
+	task.spawn(function()
+		-- AutoFarm stop
+		if AutoFarm._running then AutoFarm:Stop() end
+		if Toggles.AutoKillToggle.Value then
+			Toggles.AutoKillToggle:SetValue(false)
+		end
+
+		task.wait(1)
+
+		local maxWT = 3
+		local currentWT = 1
+
+		while getgenv().AutoWatchTower and currentWT <= maxWT do
+
+			-- Check if this tower even exists
+			local wtPos = getWatchTowerPosition(currentWT)
+			if not wtPos then
+				-- Tower already done ya exist nahi karta
+				updateWTStatus("Tower " .. currentWT .. " not found, skipping...")
+				task.wait(1)
+				currentWT = currentWT + 1
+				continue
+			end
+
+			updateWTStatus("Working on Tower " .. currentWT .. " / " .. maxWT)
+
+			-- TP to watchtower ground
+			local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+			if root then
+				root.CFrame = CFrame.new(wtPos + Vector3.new(0, 5, 0))
+			end
+			task.wait(0.5)
+
+			-- Farm loop near this watchtower
+			local checkInterval = 0
+			while getgenv().AutoWatchTower do
+				-- Noclip keep
+				local char = lp.Character
+				if char then
+					for _, p in ipairs(char:GetDescendants()) do
+						if p:IsA("BasePart") then p.CanCollide = false end
+					end
+				end
+
+				-- Refresh position
+				wtPos = getWatchTowerPosition(currentWT) or wtPos
+
+				-- Farm nearby titans
+				pcall(function() farmNearWatchTower(wtPos, currentWT) end)
+
+				-- Check every 2s if done
+				checkInterval = checkInterval + 0.15
+				if checkInterval >= 2 then
+					checkInterval = 0
+					if isWatchTowerDone(currentWT) then
+						updateWTStatus("Tower " .. currentWT .. " Complete! ✅")
+						Library:Notify({
+							Title = "Watch Tower",
+							Description = "Tower " .. currentWT .. " complete! Moving to next...",
+							Time = 3
+						})
+						task.wait(1.5)
+						currentWT = currentWT + 1
+						break
+					end
+				end
+
+				task.wait(0.15)
+			end
+		end
+
+		if currentWT > maxWT then
+			updateWTStatus("All Towers Done! ✅")
+			Library:Notify({
+				Title = "Watch Tower",
+				Description = "All 3 Watch Towers complete!",
+				Time = 5
+			})
+			-- Toggle off
+			getgenv().AutoWatchTower = false
+			pcall(function() Toggles.AutoWatchTowerToggle:SetValue(false) end)
+		end
+
+		_wtRunning = false
+		if not getgenv().AutoWatchTower then
+			updateWTStatus("Idle")
+		end
+	end)
+end
+
+-- UI Elements
+
+TSWatchTowerGroup:AddToggle("AutoWatchTowerToggle", {
+	Text = "Auto Create Watch Towers",
+	Default = false,
+	Tooltip = "Tower 1 → 2 → 3 order mein titans maarta reh jab tak pura na ho"
+})
+Toggles.AutoWatchTowerToggle:OnChanged(function()
+	getgenv().AutoWatchTower = Toggles.AutoWatchTowerToggle.Value
+	if getgenv().AutoWatchTower then
+		Library:Notify({
+			Title = "Watch Tower",
+			Description = "AutoFarm OFF, Watch Tower mode start!",
+			Time = 3
+		})
+		runWatchTowerAuto()
+	else
+		_wtRunning = false
+		updateWTStatus("Idle")
+	end
+end)
+
+TSWatchTowerGroup:AddSlider("WTFarmRangeSlider", {
+	Text = "Farm Range (around tower)",
+	Default = 350,
+	Min = 100,
+	Max = 800,
+	Rounding = 0,
+	Tooltip = "Watchtower ke kitne range mein titans dhundhe"
+})
+
+TSWatchTowerGroup:AddDivider()
+
+-- Manual TP Buttons
+TSWatchTowerGroup:AddButton({
+	Text = "TP to Watch Tower 1",
+	Func = function()
+		local wt = getWatchTower(1)
+		if not wt then Library:Notify({ Title = "Watch Tower", Description = "WatchTower_1 not found!", Time = 3 }); return end
+		local pos = getWatchTowerPosition(1)
+		if pos then
+			local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+			if root then root.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0)) end
+			Library:Notify({ Title = "Watch Tower", Description = "TP → Tower 1", Time = 2 })
+		end
+	end,
+})
+
+TSWatchTowerGroup:AddButton({
+	Text = "TP to Watch Tower 2",
+	Func = function()
+		local wt = getWatchTower(2)
+		if not wt then Library:Notify({ Title = "Watch Tower", Description = "WatchTower_2 not found!", Time = 3 }); return end
+		local pos = getWatchTowerPosition(2)
+		if pos then
+			local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+			if root then root.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0)) end
+			Library:Notify({ Title = "Watch Tower", Description = "TP → Tower 2", Time = 2 })
+		end
+	end,
+})
+
+TSWatchTowerGroup:AddButton({
+	Text = "TP to Watch Tower 3",
+	Func = function()
+		local wt = getWatchTower(3)
+		if not wt then Library:Notify({ Title = "Watch Tower", Description = "WatchTower_3 not found!", Time = 3 }); return end
+		local pos = getWatchTowerPosition(3)
+		if pos then
+			local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+			if root then root.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0)) end
+			Library:Notify({ Title = "Watch Tower", Description = "TP → Tower 3", Time = 2 })
+		end
 	end,
 })
