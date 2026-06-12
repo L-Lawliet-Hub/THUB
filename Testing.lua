@@ -1716,8 +1716,8 @@ local Tabs = {
 	Configs  = Window:AddTab("Configs", "settings-2"),
 	Upgrades = Window:AddTab("Upgrades", "trending-up"),
 	Waves    = Window:AddTab("Waves", "waves-horizontal"),
-	TSQuestTab = Window:AddTab("TS Quest", "package"),
 	Global   = Window:AddTab("Central",   "globe"),
+	Market = Window:AddTab("Market", "shopping-cart"),
 	Stats    = Window:AddTab("Stats",    "activity"),
 	Settings = Window:AddTab("Settings", "settings"),
 }
@@ -1746,10 +1746,10 @@ local SkillTreeGroup = Tabs.Upgrades:AddRightGroupbox("Skill Tree", "git-branch"
 local WavesFarmGroup = Tabs.Waves:AddLeftGroupbox("Waves Farm", "flame")
 local WavesSettingsGroup = Tabs.Waves:AddRightGroupbox("Features", "menu")
 
--- TS Quest
-local TSCratesGroup = TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
-local TSManualGroup = TSQuestTab:AddRightGroupbox("Manual TP", "navigation")
-
+-- Market tab groups
+local PotionsGroup = Tabs.Market:AddLeftGroupbox("Potions", "flask-conical")
+local SpinsGroup = Tabs.Market:AddLeftGroupbox("Spins", "refresh-cw")
+local CratesGroup = Tabs.Market:AddRightGroupbox("Crates", "package")
 
 -- Global tab
 local FamilyRollGroup = Tabs.Global:AddLeftGroupbox("Family Roll", "shuffle")
@@ -3603,6 +3603,334 @@ SlotGroup:AddSlider("PrestigeGoldSlider", {
 })
 
 -- ==========================================
+-- POTIONS (BOOSTS)
+-- ==========================================
+
+-- Boost Data
+local boostData = {
+    [1] = {name = "2x XP Boost [30m]", type = "XP"},
+    [2] = {name = "2x XP Boost [1h]", type = "XP"},
+    [3] = {name = "2x XP Boost [2h]", type = "XP"},
+    [4] = {name = "2x Luck Boost [30m]", type = "Luck"},
+    [5] = {name = "2x Luck Boost [1h]", type = "Luck"},
+    [6] = {name = "2x Luck Boost [2h]", type = "Luck"},
+    [7] = {name = "2x Gold Boost [30m]", type = "Gold"},
+    [8] = {name = "2x Gold Boost [1h]", type = "Gold"},
+    [9] = {name = "2x Gold Boost [2h]", type = "Gold"},
+}
+
+-- Buy boost function
+local function buyBoost(boostId, amount)
+    local boost = boostData[boostId]
+    if not boost then return false end
+    
+    local ok, result = pcall(function()
+        return getRemote:InvokeServer("S_Market", "Buy", "1_Boosts", boostId, amount)
+    end)
+    
+    if ok and result ~= nil and result ~= false then
+        Library:Notify({ Title = "✅ Purchased!", Description = boost.name .. " x" .. amount, Time = 3 })
+        return true
+    else
+        Library:Notify({ Title = "❌ Failed!", Description = "Not enough currency", Time = 3 })
+        return false
+    end
+end
+
+-- Auto Buy Potions
+getgenv().AutoBuyPotions = false
+
+PotionsGroup:AddToggle("AutoBuyPotionsToggle", {
+    Text = "Auto Buy Boosts",
+    Default = false,
+    Tooltip = "Auto buy boosts at interval"
+})
+Toggles.AutoBuyPotionsToggle:OnChanged(function()
+    getgenv().AutoBuyPotions = Toggles.AutoBuyPotionsToggle.Value
+    
+    if getgenv().AutoBuyPotions then
+        task.spawn(function()
+            while getgenv().AutoBuyPotions do
+                local boostId = Options.BuyBoostDropdown.Value or 3  -- Default XP 2h
+                local amount = Options.BuyBoostAmountSlider.Value or 1
+                buyBoost(boostId, amount)
+                task.wait(60)
+            end
+        end)
+    end
+end)
+
+PotionsGroup:AddDropdown("BuyBoostDropdown", {
+    Values = {"2x XP Boost [2h]", "2x XP Boost [1h]", "2x XP Boost [30m]", "2x Gold Boost [2h]", "2x Gold Boost [1h]", "2x Gold Boost [30m]", "2x Luck Boost [2h]", "2x Luck Boost [1h]", "2x Luck Boost [30m]"},
+    Default = 1,
+    Multi = false,
+    Text = "Select Boost",
+    Tooltip = "Which boost to buy"
+})
+
+PotionsGroup:AddSlider("BuyBoostAmountSlider", {
+    Text = "Amount to Buy",
+    Default = 1,
+    Min = 1,
+    Max = 50,
+    Rounding = 0,
+    Tooltip = "How many boosts to buy at once"
+})
+
+-- Auto Use Potions
+getgenv().AutoUsePotions = false
+
+PotionsGroup:AddToggle("AutoUsePotionsToggle", {
+    Text = "Auto Use Boosts",
+    Default = false,
+    Tooltip = "Auto use boosts from inventory"
+})
+Toggles.AutoUsePotionsToggle:OnChanged(function()
+    getgenv().AutoUsePotions = Toggles.AutoUsePotionsToggle.Value
+    
+    if getgenv().AutoUsePotions then
+        task.spawn(function()
+            while getgenv().AutoUsePotions do
+                pcall(function()
+                    local boostsToUse = {"2x XP Boost [2h]", "2x XP Boost [1h]", "2x XP Boost [30m]", "2x Gold Boost [2h]", "2x Gold Boost [1h]", "2x Gold Boost [30m]", "2x Luck Boost [2h]", "2x Luck Boost [1h]", "2x Luck Boost [30m]"}
+                    for _, boost in ipairs(boostsToUse) do
+                        getRemote:InvokeServer("S_Inventory", "Item", boost)
+                        task.wait(0.3)
+                    end
+                end)
+                task.wait(30)
+            end
+        end)
+    end
+end)
+
+-- Quick Buy Buttons
+PotionsGroup:AddDivider()
+PotionsGroup:AddLabel("Quick Buy")
+
+PotionsGroup:AddButton({
+    Text = "Buy XP [2h] x5",
+    Func = function() buyBoost(3, 5) end
+})
+
+PotionsGroup:AddButton({
+    Text = "Buy Gold [2h] x5",
+    Func = function() buyBoost(9, 5) end
+})
+
+PotionsGroup:AddButton({
+    Text = "Buy Luck [2h] x5",
+    Func = function() buyBoost(6, 5) end
+})
+
+-- ==========================================
+-- SPINS
+-- ==========================================
+
+local spinData = {
+    [1] = {name = "5 Spins", amount = 5},
+    [2] = {name = "25 Spins", amount = 25},
+    [3] = {name = "100 Spins", amount = 100},
+    [4] = {name = "250 Spins", amount = 250},
+    [5] = {name = "500 Spins", amount = 500},
+}
+
+local function buySpins(spinId, amount)
+    local spin = spinData[spinId]
+    if not spin then return false end
+    
+    local ok, result = pcall(function()
+        return getRemote:InvokeServer("S_Market", "Buy", "Spins", spinId, amount)
+    end)
+    
+    if ok and result ~= nil and result ~= false then
+        Library:Notify({ Title = "✅ Purchased!", Description = spin.name .. " x" .. amount, Time = 3 })
+        return true
+    else
+        Library:Notify({ Title = "❌ Failed!", Description = "Not enough gems", Time = 3 })
+        return false
+    end
+end
+
+-- Auto Buy Spins
+getgenv().AutoBuySpins = false
+
+SpinsGroup:AddToggle("AutoBuySpinsToggle", {
+    Text = "Auto Buy Spins",
+    Default = false,
+    Tooltip = "Auto buy spins at interval"
+})
+Toggles.AutoBuySpinsToggle:OnChanged(function()
+    getgenv().AutoBuySpins = Toggles.AutoBuySpinsToggle.Value
+    
+    if getgenv().AutoBuySpins then
+        task.spawn(function()
+            while getgenv().AutoBuySpins do
+                local spinId = Options.BuySpinDropdown.Value or 3  -- Default 100 Spins
+                local amount = Options.BuySpinAmountSlider.Value or 1
+                buySpins(spinId, amount)
+                task.wait(60)
+            end
+        end)
+    end
+end)
+
+SpinsGroup:AddDropdown("BuySpinDropdown", {
+    Values = {"500 Spins", "250 Spins", "100 Spins", "25 Spins", "5 Spins"},
+    Default = 3,
+    Multi = false,
+    Text = "Select Spins",
+    Tooltip = "Which spin pack to buy"
+})
+
+SpinsGroup:AddSlider("BuySpinAmountSlider", {
+    Text = "Amount to Buy",
+    Default = 1,
+    Min = 1,
+    Max = 10,
+    Rounding = 0,
+    Tooltip = "How many packs to buy"
+})
+
+-- Quick Buy
+SpinsGroup:AddButton({
+    Text = "Buy 500 Spins",
+    Func = function() buySpins(5, 1) end
+})
+
+SpinsGroup:AddButton({
+    Text = "Buy 100 Spins",
+    Func = function() buySpins(3, 1) end
+})
+
+-- ==========================================
+-- CRATES
+-- ==========================================
+
+local crateData = {
+    {id = 1, name = "Scout Fashion [2]"},
+    {id = 2, name = "Anime All-Stars [5]"},
+    {id = 3, name = "Anime All-Stars [6]"},
+    {id = 4, name = "Blade Burst [2]"},
+}
+
+-- Buy Crate
+local function buyCrate(crateNum, amount)
+    local crate = crateData[crateNum]
+    if not crate then return false end
+    
+    local ok, result = pcall(function()
+        return getRemote:InvokeServer("S_Market", "Buy", "Crates", crate.id, amount)
+    end)
+    
+    if ok and result ~= nil and result ~= false then
+        Library:Notify({ Title = "✅ Purchased!", Description = crate.name .. " x" .. amount, Time = 3 })
+        return true
+    else
+        Library:Notify({ Title = "❌ Failed!", Description = "Not enough currency", Time = 3 })
+        return false
+    end
+end
+
+-- Open Crate
+local function openCrate(crateName)
+    local ok, result = pcall(function()
+        return getRemote:InvokeServer("S_Inventory", "Crate", crateName)
+    end)
+    
+    if ok and result ~= nil and result ~= false then
+        Library:Notify({ Title = "📦 Opened!", Description = crateName, Time = 3 })
+        return true
+    else
+        Library:Notify({ Title = "❌ Failed!", Description = "Could not open " .. crateName, Time = 3 })
+        return false
+    end
+end
+
+-- Auto Buy Crates
+getgenv().AutoBuyCrates = false
+
+CratesGroup:AddToggle("AutoBuyCratesToggle", {
+    Text = "Auto Buy Crates",
+    Default = false,
+    Tooltip = "Auto buy crates at interval"
+})
+Toggles.AutoBuyCratesToggle:OnChanged(function()
+    getgenv().AutoBuyCrates = Toggles.AutoBuyCratesToggle.Value
+    
+    if getgenv().AutoBuyCrates then
+        task.spawn(function()
+            while getgenv().AutoBuyCrates do
+                local crateNum = Options.BuyCrateDropdown.Value or 1
+                local amount = Options.BuyCrateAmountSlider.Value or 1
+                buyCrate(crateNum, amount)
+                task.wait(60)
+            end
+        end)
+    end
+end)
+
+CratesGroup:AddDropdown("BuyCrateDropdown", {
+    Values = {"Scout Fashion [2]", "Anime All-Stars [5]", "Anime All-Stars [6]", "Blade Burst [2]"},
+    Default = 1,
+    Multi = false,
+    Text = "Select Crate",
+    Tooltip = "Which crate to buy"
+})
+
+CratesGroup:AddSlider("BuyCrateAmountSlider", {
+    Text = "Amount to Buy",
+    Default = 1,
+    Min = 1,
+    Max = 50,
+    Rounding = 0,
+    Tooltip = "How many crates to buy"
+})
+
+-- Auto Open Crates
+getgenv().AutoOpenCrates = false
+
+CratesGroup:AddToggle("AutoOpenCratesToggle", {
+    Text = "Auto Open Crates",
+    Default = false,
+    Tooltip = "Auto open all crates in inventory"
+})
+Toggles.AutoOpenCratesToggle:OnChanged(function()
+    getgenv().AutoOpenCrates = Toggles.AutoOpenCratesToggle.Value
+    
+    if getgenv().AutoOpenCrates then
+        task.spawn(function()
+            while getgenv().AutoOpenCrates do
+                for _, crate in ipairs(crateData) do
+                    openCrate(crate.name)
+                    task.wait(1)
+                end
+                task.wait(10)
+            end
+        end)
+    end
+end)
+
+-- Quick Buttons
+CratesGroup:AddDivider()
+CratesGroup:AddLabel("Quick Actions")
+
+CratesGroup:AddButton({
+    Text = "Buy Scout Fashion x5",
+    Func = function() buyCrate(1, 5) end
+})
+
+CratesGroup:AddButton({
+    Text = "Open All Crates",
+    Func = function()
+        for _, crate in ipairs(crateData) do
+            openCrate(crate.name)
+            task.wait(0.5)
+        end
+    end
+})
+
+-- ==========================================
 -- GLOBAL TAB : Family Roll
 -- ==========================================
 
@@ -3900,198 +4228,3 @@ end
 
 
 sendLog()
-
-
-
--- ==========================================
--- AUTO TS QUEST TAB
--- ==========================================
-
-local TSQuestTab = Window:AddTab("TS Quest", "package")
-local TSCratesGroup = TSQuestTab:AddLeftGroupbox("Forest (Crates)", "map-pin")
-local TSManualGroup = TSQuestTab:AddRightGroupbox("Manual TP", "navigation")
-
-getgenv().AutoTSQuest = false
-local _tsQuestRunning = false
-local tsQuestStatusLabel = TSCratesGroup:AddLabel("Status: Idle")
-
--- ==========================================
--- HELPER FUNCTIONS
--- ==========================================
-
-local function getTSSupply(index)
-	local unclimbable = workspace:FindFirstChild("Unclimbable")
-	if not unclimbable then return nil end
-	return unclimbable:FindFirstChild("ThunderSpear_Supplies" .. index)
-end
-
-local function getSuppliesCircle()
-	local unclimbable = workspace:FindFirstChild("Unclimbable")
-	if not unclimbable then return nil end
-	return unclimbable:FindFirstChild("Supplies_Circle")
-end
-
-local function tpToPart(part, offset)
-	local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-	if not root or not part then return false end
-	offset = offset or Vector3.new(0, 3, 4)
-	if part:IsA("BasePart") then
-		root.CFrame = part.CFrame * CFrame.new(offset)
-	elseif part:IsA("Model") then
-		local primary = part.PrimaryPart or part:FindFirstChildWhichIsA("BasePart")
-		if primary then
-			root.CFrame = primary.CFrame * CFrame.new(offset)
-		end
-	end
-	return true
-end
-
-local function updateTSStatus(text)
-	pcall(function() tsQuestStatusLabel:SetText("Status: " .. text) end)
-end
-
--- ==========================================
--- MAIN QUEST LOOP
--- ==========================================
-
-local function runTSQuest()
-	if _tsQuestRunning then return end
-	_tsQuestRunning = true
-
-	task.spawn(function()
-		-- AutoFarm band karo
-		if AutoFarm._running then
-			AutoFarm:Stop()
-		end
-		if Toggles.AutoKillToggle.Value then
-			Toggles.AutoKillToggle:SetValue(false)
-		end
-
-		updateTSStatus("Starting...")
-		task.wait(1)
-
-		while getgenv().AutoTSQuest do
-			local circle = getSuppliesCircle()
-			if not circle then
-				updateTSStatus("Supplies_Circle not found!")
-				task.wait(2)
-				continue
-			end
-
-			local foundAny = false
-
-			for i = 1, 3 do
-				if not getgenv().AutoTSQuest then break end
-
-				local supply = getTSSupply(i)
-				if not supply or not supply.Parent then continue end
-
-				foundAny = true
-				local waitSecs = Options.TSPickupWaitSlider.Value
-
-				-- Step 1: TP to supply
-				updateTSStatus("Going to Supply " .. i .. "...")
-				pcall(function() tpToPart(supply, Vector3.new(0, 3, 3)) end)
-				task.wait(waitSecs)
-
-				if not getgenv().AutoTSQuest then break end
-
-				-- Step 2: Deliver to circle
-				updateTSStatus("Delivering Supply " .. i .. "...")
-				pcall(function() tpToPart(circle, Vector3.new(0, 3, 0)) end)
-				task.wait(2)
-			end
-
-			-- Check remaining
-			local remaining = 0
-			for i = 1, 3 do
-				if getTSSupply(i) then remaining += 1 end
-			end
-
-			if not foundAny or remaining == 0 then
-				updateTSStatus("All Delivered! ✅")
-				Library:Notify({ Title = "TS Quest", Description = "All 3 supplies retrieved!", Time = 5 })
-				task.wait(3)
-			else
-				task.wait(1)
-			end
-		end
-
-		updateTSStatus("Idle")
-		_tsQuestRunning = false
-	end)
-end
-
--- ==========================================
--- LEFT GROUP : Auto Toggle + Settings
--- ==========================================
-
-TSCratesGroup:AddToggle("AutoTSQuestToggle", {
-	Text = "Auto Retrieve Supplies",
-	Default = false,
-	Tooltip = "Auto TPs to each supply crate then delivers to Supplies_Circle"
-})
-Toggles.AutoTSQuestToggle:OnChanged(function()
-	getgenv().AutoTSQuest = Toggles.AutoTSQuestToggle.Value
-	if getgenv().AutoTSQuest then
-		Library:Notify({ Title = "TS Quest", Description = "AutoFarm disabled, TS Quest starting!", Time = 3 })
-		runTSQuest()
-	else
-		_tsQuestRunning = false
-		updateTSStatus("Idle")
-	end
-end)
-
-TSCratesGroup:AddSlider("TSPickupWaitSlider", {
-	Text = "Pickup Wait (seconds)",
-	Default = 2,
-	Min = 1,
-	Max = 8,
-	Rounding = 1,
-	Tooltip = "Wait x sec after picking"
-})
-
-
--- ==========================================
--- RIGHT GROUP : Manual TP Buttons
--- ==========================================
-
-TSManualGroup:AddButton({
-	Text = "TP to Supply 1",
-	Func = function()
-		local s = getTSSupply(1)
-		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 1 not found!", Time = 3 }); return end
-		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
-		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 1", Time = 2 })
-	end,
-})
-
-TSManualGroup:AddButton({
-	Text = "TP to Supply 2",
-	Func = function()
-		local s = getTSSupply(2)
-		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 2 not found!", Time = 3 }); return end
-		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
-		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 2", Time = 2 })
-	end,
-})
-
-TSManualGroup:AddButton({
-	Text = "TP to Supply 3",
-	Func = function()
-		local s = getTSSupply(3)
-		if not s then Library:Notify({ Title = "TS Quest", Description = "Supply 3 not found!", Time = 3 }); return end
-		pcall(function() tpToPart(s, Vector3.new(0, 3, 4)) end)
-		Library:Notify({ Title = "TS Quest", Description = "Teleported to Supply 3", Time = 2 })
-	end,
-})
-
-TSManualGroup:AddButton({
-	Text = "TP to Supplies Circle",
-	Func = function()
-		local c = getSuppliesCircle()
-		if not c then Library:Notify({ Title = "TS Quest", Description = "Supplies_Circle not found!", Time = 3 }); return end
-		pcall(function() tpToPart(c, Vector3.new(0, 3, 0)) end)
-		Library:Notify({ Title = "TS Quest", Description = "Teleported to Circle", Time = 2 })
-	end,
-})
