@@ -2924,7 +2924,8 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
         pcall(function() Toggles.SoloOnlyToggle:SetValue(true) end)
         
         -- Movement
-        pcall(function() Options.MovementModeDropdown:SetValue("Teleport") end)
+        pcall(function() Options.MovementModeDropdown:SetValue("Hover") end)
+		pcall(function() Options.HoverSpeedSlider:SetValue(230) end)
         pcall(function() Options.FloatHeightSlider:SetValue(310) end)
         pcall(function() Toggles.NoclipToggle:SetValue(true) end)
 		pcall(function() Toggles.AutoBoostToggle:SetValue(true) end) -- Auto boost
@@ -2963,7 +2964,7 @@ Toggles.AFKFarmingStallToggle:OnChanged(function()
         
         Library:Notify({
             Title = "⚙️ AFK Farming (Stall) Applied!",
-            Description = "Docks | Stall | Hardest\nAll 10 Mods | Solo | Teleport",
+            Description = "Docks | Stall | Hardest\nAll 10 Mods | Solo | Hover",
             Time = 5
         })
         
